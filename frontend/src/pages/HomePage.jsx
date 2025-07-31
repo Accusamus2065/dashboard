@@ -1,4 +1,4 @@
-// src/pages/HomePage.jsx
+// frontend/src/pages/HomePage.jsx
 import React, {useEffect, useState} from 'react';
 import {Table, Typography} from 'antd';
 import api from '../services/api';

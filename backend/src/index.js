@@ -1,4 +1,4 @@
-// src/index.js
+// backend/src/index.js
 require('dotenv').config();
 const express = require('express');
 const sequelize = require('./config/sequelize');
