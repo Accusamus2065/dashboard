@@ -16,6 +16,16 @@ const Model = sequelize.define('Model', {
         type: DataTypes.STRING,
         allowNull: false,
     },
+    description: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        defaultValue: '',
+    },
+    input_schema: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        defaultValue: null,
+    },
     artifact_uri: {
         type: DataTypes.TEXT,
         allowNull: false,

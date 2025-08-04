@@ -88,7 +88,7 @@ export default function UploadPage() {
                     <Upload
                         beforeUpload={() => false}
                         maxCount={1}
-                        accept=".onnx,.pkl,.pdf"
+                        accept=".onnx,.pkl"
                         listType="text"
                         onExceed={() => {
                             message.error('You can only upload one file');
