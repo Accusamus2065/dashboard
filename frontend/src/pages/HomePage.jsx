@@ -1,6 +1,6 @@
 // frontend/src/pages/HomePage.jsx
 import React, {useEffect, useState, useMemo} from 'react';
-import '@ant-design/v5-patch-for-react-19'
+import '@ant-design/v5-patch-for-react-19';
 import {
     Table, Typography, Button, Input, Space, Select, Popconfirm, message
 } from 'antd';
@@ -9,7 +9,6 @@ import {
 } from '@ant-design/icons';
 import {useNavigate} from 'react-router-dom';
 import api from '../services/api';
-
 import {SCHEMA_MODES, RISK_LEVELS} from '../constants/constant';
 
 const {Title} = Typography;
@@ -66,17 +65,43 @@ export default function HomePage() {
         title: 'Artifact',
         dataIndex: 'artifact_uri',
         key: 'uri',
-        render: uri => <a href={`http://localhost:3000${uri}`} download>Download</a>
+        render: uri => (<a href={`http://localhost:3000${uri}`} download>
+            Download
+        </a>)
     }, {
         title: 'Actions', key: 'actions', width: 200, render: (_t, r) => (<Space>
-            <Button icon={<EyeOutlined/>} onClick={() => navigate(`/view/${r.id}`)}>View</Button>
-            <Button icon={<PlayCircleOutlined/>} onClick={() => navigate(`/predict/${r.id}`)}>Predict</Button>
-            <Popconfirm title="Confirm delete?" onConfirm={async () => {
-                await api.delete(`/models/${r.id}`);
-                message.success('Deleted');
-                loadModels();
-            }}>
-                <Button danger icon={<DeleteOutlined/>}>Delete</Button>
+            <Button
+                id="view-button"
+                name="viewButton"
+                icon={<EyeOutlined/>}
+                onClick={() => navigate(`/view/${r.id}`)}
+            >
+                View
+            </Button>
+            <Button
+                id="predict-button"
+                name="predictButton"
+                icon={<PlayCircleOutlined/>}
+                onClick={() => navigate(`/predict/${r.id}`)}
+            >
+                Predict
+            </Button>
+            <Popconfirm
+                title="Confirm delete?"
+                onConfirm={async () => {
+                    await api.delete(`/models/${r.id}`);
+                    message.success('Deleted');
+                    loadModels();
+                }}
+            >
+                <Button
+                    id="delete-button"
+                    name="deleteButton"
+                    danger
+                    icon={<DeleteOutlined/>}
+                >
+                    Delete
+                </Button>
             </Popconfirm>
         </Space>)
     }];
@@ -85,42 +110,74 @@ export default function HomePage() {
         <Title level={2}>Model Registry</Title>
 
         <Space wrap style={{marginBottom: 16}}>
-            <Button type="primary" icon={<PlusOutlined/>} onClick={() => navigate('/upload')}>
+            <Button
+                id="upload-button"
+                name="uploadButton"
+                type="primary"
+                icon={<PlusOutlined/>}
+                onClick={() => navigate('/upload')}
+            >
                 Upload Model
             </Button>
 
-            <Search placeholder="Search Name" allowClear onSearch={setNameSearch} style={{width: 200}}/>
+            <Search
+                id="search-name"
+                name="searchName"
+                placeholder="Search Name"
+                allowClear
+                onSearch={setNameSearch}
+                style={{width: 200}}
+            />
 
-            <Search placeholder="Search Description" allowClear onSearch={setDescSearch} style={{width: 200}}/>
+            <Search
+                id="search-desc"
+                name="searchDescription"
+                placeholder="Search Description"
+                allowClear
+                onSearch={setDescSearch}
+                style={{width: 200}}
+            />
 
             <Select
+                id="filter-schema"
+                name="filterSchema"
                 placeholder="Filter Schema"
                 allowClear
-                style={{width: 160}}
                 onChange={setSchemaFilter}
                 defaultValue={undefined}
+                style={{width: 160}}
             >
-                {SCHEMA_MODES.map(s => <Option key={s} value={s}>{s}</Option>)}
+                {SCHEMA_MODES.map(s => (<Option key={s} value={s}>
+                    {s}
+                </Option>))}
             </Select>
 
             <Select
+                id="filter-risk"
+                name="filterRisk"
                 placeholder="Filter Risk"
                 allowClear
-                style={{width: 140}}
                 onChange={setRiskFilter}
                 defaultValue={undefined}
+                style={{width: 140}}
             >
-                {RISK_LEVELS.map(r => <Option key={r} value={r}>{r}</Option>)}
+                {RISK_LEVELS.map(r => (<Option key={r} value={r}>
+                    {r}
+                </Option>))}
             </Select>
 
             <Select
+                id="page-size"
+                name="pageSize"
                 placeholder="Page Size"
                 allowClear
                 defaultValue={pageSize}
-                style={{width: 120}}
                 onChange={setPageSize}
+                style={{width: 120}}
             >
-                {[5, 10, 20, 50].map(n => <Option key={n} value={n}>{n}</Option>)}
+                {[5, 10, 20, 50].map(n => (<Option key={n} value={n}>
+                    {n}
+                </Option>))}
             </Select>
         </Space>
 
