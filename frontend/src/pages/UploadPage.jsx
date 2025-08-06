@@ -53,20 +53,20 @@ export default function UploadPage() {
         >
             <Form.Item
                 name="name"
-                label="Name *"
+                label="Name"
                 rules={[{required: true}]}
             >
                 <Input
                     id="name"
                     name="name"
-                    autoComplete="on"
+                    autoComplete="off"
                     placeholder="Model Name"
                 />
             </Form.Item>
 
             <Form.Item
                 name="version"
-                label="Version *"
+                label="Version"
                 rules={[{required: true}]}
             >
                 <Input
@@ -79,7 +79,7 @@ export default function UploadPage() {
 
             <Form.Item
                 name="description"
-                label="Brief Description *"
+                label="Brief Description"
                 rules={[{required: true}]}
             >
                 <Input.TextArea
@@ -92,7 +92,7 @@ export default function UploadPage() {
 
             <Form.Item
                 name="input_schema"
-                label="Input Schema *"
+                label="Input Schema"
                 rules={[{required: true}]}
             >
                 <Select
@@ -106,7 +106,7 @@ export default function UploadPage() {
 
             <Form.Item
                 name="risk_level"
-                label="Risk *"
+                label="Risk"
                 rules={[{required: true}]}
             >
                 <Select
@@ -116,6 +116,38 @@ export default function UploadPage() {
                 >
                     {RISK_LEVELS.map(r => (<Option key={r} value={r}>{r}</Option>))}
                 </Select>
+            </Form.Item>
+
+            <Form.Item
+                name="files"
+                label="Model File(s)"
+                rules={[{required: true}]}
+            >
+                <Upload
+                    id="files"
+                    name="files"
+                    maxCount={1}
+                    accept=".onnx,.pt,.pth,.h5,.pb,.pkl,.joblib"
+                    // disable built-in upload URL
+                    action={null}
+                    // short-circuit any AJAX upload
+                    customRequest={({file, onSuccess}) => {
+                        // immediately succeed; actual upload is in onFinish
+                        setTimeout(() => onSuccess(null, file), 0);
+                    }}
+                    // validation
+                    beforeUpload={file => {
+                        const valid = /\.(onnx|pt|pth|h5|pb|pkl|joblib)$/i.test(file.name);
+                        if (!valid) {
+                            message.error('Allowed file types: .onnx, .pt, .pth, .h5, .pb, .pkl, .joblib');
+                        }
+                        return valid;
+                    }}
+                    onChange={info => setFileList(info.fileList)}
+                    fileList={fileList}
+                >
+                    <Button icon={<UploadOutlined/>}>Select Model Files</Button>
+                </Upload>
             </Form.Item>
 
             {/* Optional Fields */}
@@ -234,23 +266,6 @@ export default function UploadPage() {
                     autoComplete="off"
                     rows={2}
                 />
-            </Form.Item>
-
-            <Form.Item
-                name="files"
-                label="Model File(s) *"
-                rules={[{required: true}]}
-            >
-                <Upload
-                    id="files"
-                    name="files"
-                    beforeUpload={() => false}
-                    onChange={info => setFileList(info.fileList)}
-                    fileList={fileList}
-                    multiple
-                >
-                    <Button icon={<UploadOutlined/>}>Select Model Files</Button>
-                </Upload>
             </Form.Item>
 
             <Form.Item>

@@ -25,7 +25,16 @@ const storage = multer.diskStorage({
         cb(null, filename);
     }
 });
-const upload = multer({storage});
+const upload = multer({
+    storage, fileFilter: (_req, file, cb) => {
+        // allow .onnx, .pt, .pth, .h5, .pb, .pkl, .joblib
+        const allowed = /\.(onnx|pt|pth|h5|pb|pkl|joblib)$/i;
+        if (!allowed.test(file.originalname)) {
+            return cb(new Error('Allowed file types: .onnx, .pt, .pth, .h5, .pb, .pkl, .joblib'));
+        }
+        cb(null, true);
+    }
+});
 
 // Serve uploaded files as static resources
 app.use('/uploads', express.static(UPLOAD_DIR));
@@ -151,8 +160,20 @@ app.put('/models/:id', upload.array('files'), async (req, res, next) => {
 // Delete a model by ID
 app.delete('/models/:id', async (req, res, next) => {
     try {
-        const count = await Model.destroy({where: {id: req.params.id}});
-        res.sendStatus(count ? 204 : 404);
+        const rec = await Model.findByPk(req.params.id);
+        if (!rec) {
+            return res.sendStatus(404);
+        }
+        if (rec.artifact_uri) {
+            const filePath = path.join(__dirname, '../', rec.artifact_uri);
+            fs.unlink(filePath, err => {
+                if (err) {
+                    console.error(`Failed to delete file ${filePath}:`, err);
+                }
+            });
+        }
+        await rec.destroy();
+        res.sendStatus(204);
     } catch (err) {
         next(err);
     }
