@@ -23,17 +23,17 @@ export default function ModelDetailPage() {
 
     if (loading || !model) {
         return (<Row justify="center" align="middle" style={{height: '100vh'}}>
-                <Col>
-                    <Spin/>
-                </Col>
-            </Row>);
+            <Col>
+                <Spin/>
+            </Col>
+        </Row>);
     }
 
     // Helper to render either the value or a “Pending update” placeholder
     const renderField = (value) => value != null && value !== '' ? value : <i>Pending update</i>;
 
     return (<div style={{padding: 24}}>
-        <Button onClick={() => navigate(-1)} style={{marginBottom: 16}}>
+        <Button onClick={() => navigate('/', {replace: true})} style={{marginBottom: 16}}>
             Back
         </Button>
 
