@@ -31,7 +31,7 @@ const upload = multer({storage});
 app.use('/uploads', express.static(UPLOAD_DIR));
 
 // Sync database models
-sequelize.sync({ alter: true })
+sequelize.sync({alter: true})
     .then(() => console.log('Database synced with alter'))
     .catch(console.error);
 
@@ -41,6 +41,17 @@ app.get('/models', async (_req, res, next) => {
     try {
         const list = await Model.findAll({order: [['id', 'ASC']]});
         res.json(list);
+    } catch (err) {
+        next(err);
+    }
+});
+
+// GET a single model by ID
+app.get('/models/:id', async (req, res, next) => {
+    try {
+        const rec = await Model.findByPk(req.params.id);
+        if (!rec) return res.status(404).json({error: 'Not found'});
+        res.json(rec);
     } catch (err) {
         next(err);
     }
@@ -106,6 +117,32 @@ app.post('/models', upload.array('files'), async (req, res, next) => {
             additional_notes
         });
         res.status(201).json(created);
+    } catch (err) {
+        next(err);
+    }
+});
+
+// PUT update a model by ID
+app.put('/models/:id', upload.array('files'), async (req, res, next) => {
+    try {
+        const rec = await Model.findByPk(req.params.id);
+        if (!rec) return res.status(404).json({error: 'Not found'});
+
+        // extract updatable fields
+        const updatable = ['name', 'version', 'description', 'input_schema', 'risk_level', 'environment_spec', 'baseline_metrics', 'example_io', 'compliance_docs', 'business_tags', 'owner_contact', 'license', 'dataset_dependencies', 'additional_notes'];
+        const data = {};
+        updatable.forEach(f => {
+            if (req.body[f] !== undefined) data[f] = req.body[f];
+        });
+
+        // handle new files if any
+        if (req.files?.length) {
+            const uri = `/uploads/${req.files[0].filename}`;
+            data.artifact_uri = uri;
+        }
+
+        await rec.update(data);
+        res.json(rec);
     } catch (err) {
         next(err);
     }
