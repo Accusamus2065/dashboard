@@ -14,7 +14,9 @@
     "pg": "^8.16.3",
     "sequelize": "^6.37.7",
     "cors": "^2.8.5",
-    "onnxruntime-node": "^1.22.0-rev"
+    "onnxruntime-node": "^1.22.0-rev",
+    "bcryptjs": "^3.0.2",
+    "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

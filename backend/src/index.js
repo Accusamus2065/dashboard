@@ -5,18 +5,50 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
 const {Model, SCHEMA_MODES, RISK_LEVELS, LICENSES} = require('./models/model');
+const {User, USER_ROLES} = require('./models/user');
 const sequelize = require('./config/sequelize');
 
 const app = express();
-app.use(cors());
+app.use(cors({origin: 'http://localhost:5173', credentials: true}));
 app.use(express.json());
 
-// Ensure uploads directory exists
+// ---- JWT helpers ----
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+
+function signToken(user) {
+    return jwt.sign({uid: user.id, role: user.role}, JWT_SECRET, {expiresIn: '7d'});
+}
+
+function authRequired(req, res, next) {
+    const auth = req.headers.authorization || '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    if (!token) return res.status(401).json({error: 'Unauthorized'});
+    try {
+        const payload = jwt.verify(token, JWT_SECRET);
+        req.user = payload; // {uid, role}
+        next();
+    } catch {
+        return res.status(401).json({error: 'Invalid token'});
+    }
+}
+
+function requireRole(roles) {
+    const allow = Array.isArray(roles) ? roles : [roles];
+    return (req, res, next) => {
+        if (!req.user) return res.status(401).json({error: 'Unauthorized'});
+        if (!allow.includes(req.user.role)) return res.status(403).json({error: 'Forbidden'});
+        next();
+    };
+}
+
+// ---- uploads ----
 const UPLOAD_DIR = path.resolve(__dirname, '../uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 
-// Multer storage
 const storage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
     filename: (_req, file, cb) => cb(null, `${Date.now()}_${file.originalname}`)
@@ -24,27 +56,37 @@ const storage = multer.diskStorage({
 const upload = multer({
     storage,
     fileFilter: (_req, file, cb) => {
-        // Allow common model/doc/data extensions
-        const allowed = /\.(onnx|pt|pth|h5|pb|pkl|joblib|md|txt|pdf|doc|docx|csv|json|parquet|zip)$/i;
-        if (!allowed.test(file.originalname)) {
-            return cb(new Error('Unsupported file type'));
-        }
+        const allowed = /\.(onnx|pt|pth|h5|pb|pkl|joblib|md|txt|pdf|doc|docx|csv|json|parquet|zip|png|jpg|jpeg|gif|svg)$/i;
+        if (!allowed.test(file.originalname)) return cb(new Error('Unsupported file type'));
         cb(null, true);
     }
 });
-
-// Serve static files
 app.use('/uploads', express.static(UPLOAD_DIR));
 
-// Auto sync schema in dev
+// ---- DB sync & seed admin ----
 sequelize.sync({alter: true})
-    .then(() => console.log('Database synced with alter'))
+    .then(async () => {
+        console.log('Database synced with alter');
+
+        // Seed admin if env provided and not exists
+        const {ADMIN_EMAIL, ADMIN_PASSWORD} = process.env;
+        if (ADMIN_EMAIL && ADMIN_PASSWORD) {
+            const existing = await User.findOne({where: {email: ADMIN_EMAIL}});
+            if (!existing) {
+                const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+                await User.create({email: ADMIN_EMAIL, password_hash: hash, role: 'admin'});
+                console.log(`Seeded admin: ${ADMIN_EMAIL}`);
+            }
+        } else {
+            console.log('Tip: set ADMIN_EMAIL & ADMIN_PASSWORD in .env to seed an admin');
+        }
+    })
     .catch(console.error);
 
-// Helpers
-const toNum = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
-const toArrayFromFiles = (arr) => (Array.isArray(arr) ? arr.map(f => `/uploads/${f.filename}`) : null);
-const safeParseArray = (v) => {
+// ---- helpers ----
+const toNum = v => (v === undefined || v === null || v === '' ? null : Number(v));
+const toArrayFromFiles = arr => (Array.isArray(arr) ? arr.map(f => `/uploads/${f.filename}`) : null);
+const safeParseArray = v => {
     if (Array.isArray(v)) return v;
     if (typeof v === 'string') {
         try {
@@ -56,10 +98,51 @@ const safeParseArray = (v) => {
     return null;
 };
 
-// Routes
+// ---- AUTH ROUTES ----
+app.post('/auth/register', async (req, res) => {
+    const {email, password} = req.body || {};
+    if (!email || !password) return res.status(400).json({error: 'Email & password required'});
+    const existed = await User.findOne({where: {email}});
+    if (existed) return res.status(409).json({error: 'Email already registered'});
+    const hash = await bcrypt.hash(password, 10);
+    const user = await User.create({email, password_hash: hash, role: 'viewer'});
+    res.status(201).json({id: user.id, email: user.email, role: user.role});
+});
 
-// GET all
-app.get('/models', async (_req, res, next) => {
+app.post('/auth/login', async (req, res) => {
+    const {email, password} = req.body || {};
+    const user = await User.findOne({where: {email}});
+    if (!user) return res.status(401).json({error: 'Invalid credentials'});
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({error: 'Invalid credentials'});
+    const token = signToken(user);
+    res.json({token, user: {id: user.id, email: user.email, role: user.role}});
+});
+
+app.get('/auth/me', authRequired, async (req, res) => {
+    const user = await User.findByPk(req.user.uid, {attributes: ['id', 'email', 'role']});
+    res.json(user);
+});
+
+// ---- ADMIN: manage users ----
+app.get('/admin/users', authRequired, requireRole('admin'), async (_req, res) => {
+    const users = await User.findAll({attributes: ['id', 'email', 'role', 'created_at']});
+    res.json(users);
+});
+
+app.put('/admin/users/:id/role', authRequired, requireRole('admin'), async (req, res) => {
+    const {role} = req.body || {};
+    if (!USER_ROLES.includes(role)) return res.status(400).json({error: 'Invalid role'});
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({error: 'User not found'});
+    user.role = role;
+    await user.save();
+    res.json({id: user.id, email: user.email, role: user.role});
+});
+
+// ---- MODEL ROUTES (protected) ----
+// Everyone logged-in can list & view
+app.get('/models', authRequired, async (_req, res, next) => {
     try {
         const list = await Model.findAll({order: [['id', 'ASC']]});
         res.json(list);
@@ -68,8 +151,7 @@ app.get('/models', async (_req, res, next) => {
     }
 });
 
-// GET one
-app.get('/models/:id', async (req, res, next) => {
+app.get('/models/:id', authRequired, async (req, res, next) => {
     try {
         const rec = await Model.findByPk(req.params.id);
         if (!rec) return res.status(404).json({error: 'Not found'});
@@ -79,14 +161,15 @@ app.get('/models/:id', async (req, res, next) => {
     }
 });
 
-// POST create
+// Create: uploader/admin
 app.post(
     '/models',
+    authRequired, requireRole(['uploader', 'admin']),
     upload.fields([
-        {name: 'files', maxCount: 10},            // model artifacts
-        {name: 'readme', maxCount: 1},            // readme file
-        {name: 'compliance_docs', maxCount: 20},  // compliance docs
-        {name: 'training_data', maxCount: 50},    // dataset dependencies
+        {name: 'files', maxCount: 10},
+        {name: 'readme', maxCount: 1},
+        {name: 'compliance_docs', maxCount: 20},
+        {name: 'training_data', maxCount: 50},
         {name: 'validation_data', maxCount: 50},
     ]),
     async (req, res, next) => {
@@ -100,7 +183,7 @@ app.post(
                 return res.status(400).json({error: 'Missing required fields'});
             }
             if (!SCHEMA_MODES.includes(input_schema) || !RISK_LEVELS.includes(risk_level)) {
-                return res.status(400).json({error: 'Invalid schema or risk value'});
+                return res.status(400).json({error: 'Invalid schema or risk'});
             }
             if (license && !LICENSES.includes(license)) {
                 return res.status(400).json({error: 'Invalid license'});
@@ -109,20 +192,17 @@ app.post(
                 return res.status(400).json({error: 'Model artifact file is required'});
             }
 
-            // Files
             const artifact_uri = `/uploads/${req.files.files[0].filename}`;
             const readme_uri = req.files.readme?.[0] ? `/uploads/${req.files.readme[0].filename}` : null;
             const compliance_docs = toArrayFromFiles(req.files.compliance_docs);
             const training_data_uris = toArrayFromFiles(req.files.training_data);
             const validation_data_uris = toArrayFromFiles(req.files.validation_data);
 
-            // Metrics
             const baseline_latency_ms = toNum(req.body.baseline_latency_ms);
             const baseline_accuracy = toNum(req.body.baseline_accuracy);
             const baseline_f1 = toNum(req.body.baseline_f1);
             const baseline_auc = toNum(req.body.baseline_auc);
 
-            // Business tags (JSON array string or CSV will not be accepted here; front-end sends JSON)
             const business_tags = safeParseArray(req.body.business_tags);
 
             const created = await Model.create({
@@ -139,9 +219,10 @@ app.post(
     }
 );
 
-// PUT update
+// Update: uploader/admin
 app.put(
     '/models/:id',
+    authRequired, requireRole(['uploader', 'admin']),
     upload.fields([
         {name: 'files', maxCount: 10},
         {name: 'readme', maxCount: 1},
@@ -154,10 +235,7 @@ app.put(
             const rec = await Model.findByPk(req.params.id);
             if (!rec) return res.status(404).json({error: 'Not found'});
 
-            const updatable = [
-                'name', 'version', 'description', 'input_schema', 'risk_level',
-                'owner_contact', 'license'
-            ];
+            const updatable = ['name', 'version', 'description', 'input_schema', 'risk_level', 'owner_contact', 'license'];
             const data = {};
             updatable.forEach(f => {
                 if (req.body[f] !== undefined) data[f] = req.body[f];
@@ -173,18 +251,13 @@ app.put(
                 return res.status(400).json({error: 'Invalid license'});
             }
 
-            // Metrics
             if (req.body.baseline_latency_ms !== undefined) data.baseline_latency_ms = toNum(req.body.baseline_latency_ms);
             if (req.body.baseline_accuracy !== undefined) data.baseline_accuracy = toNum(req.body.baseline_accuracy);
             if (req.body.baseline_f1 !== undefined) data.baseline_f1 = toNum(req.body.baseline_f1);
             if (req.body.baseline_auc !== undefined) data.baseline_auc = toNum(req.body.baseline_auc);
 
-            // Business tags (JSON array)
-            if (req.body.business_tags !== undefined) {
-                data.business_tags = safeParseArray(req.body.business_tags);
-            }
+            if (req.body.business_tags !== undefined) data.business_tags = safeParseArray(req.body.business_tags);
 
-            // Files replacement if provided
             if (req.files?.files?.length) data.artifact_uri = `/uploads/${req.files.files[0].filename}`;
             if (req.files?.readme?.length) data.readme_uri = `/uploads/${req.files.readme[0].filename}`;
             if (req.files?.compliance_docs?.length) data.compliance_docs = toArrayFromFiles(req.files.compliance_docs);
@@ -199,12 +272,11 @@ app.put(
     }
 );
 
-// DELETE
-app.delete('/models/:id', async (req, res, next) => {
+// Delete: admin only
+app.delete('/models/:id', authRequired, requireRole('admin'), async (req, res, next) => {
     try {
         const rec = await Model.findByPk(req.params.id);
         if (!rec) return res.sendStatus(404);
-        // Note: physical file deletion is best-effort (omitted for arrays)
         if (rec.artifact_uri) {
             const filePath = path.join(__dirname, '../', rec.artifact_uri);
             fs.unlink(filePath, () => {

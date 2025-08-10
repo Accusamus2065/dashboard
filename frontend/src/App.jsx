@@ -1,18 +1,43 @@
 // frontend/src/App.jsx
 import React from 'react';
-import {BrowserRouter, Routes, Route} from 'react-router-dom';
+import {BrowserRouter, Routes, Route, Navigate} from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import UploadPage from './pages/UploadPage';
-import ModelDetailPage from "./pages/ModelDetailPage";
-import EditPage from "./pages/EditPage";
+import ModelDetailPage from './pages/ModelDetailPage';
+import EditPage from './pages/EditPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import {useAuth} from './contexts/AuthContext';
+
+function RequireAuth({children, roles}) {
+    const {user, hasRole} = useAuth();
+    if (!user) return <Navigate to="/login" replace/>;
+    if (roles && !hasRole(roles)) return <div style={{padding: 24}}>403 Forbidden</div>;
+    return children;
+}
 
 export default function App() {
-    return (<BrowserRouter>
-        <Routes>
-            <Route path="/" element={<HomePage/>}/>
-            <Route path="/upload" element={<UploadPage/>}/>
-            <Route path="/view/:id" element={<ModelDetailPage/>}/>
-            <Route path="/edit/:id" element={<EditPage/>}/>
-        </Routes>
-    </BrowserRouter>);
+    return (
+        <BrowserRouter>
+            <Routes>
+                <Route path="/login" element={<LoginPage/>}/>
+                <Route path="/register" element={<RegisterPage/>}/>
+
+                <Route path="/" element={
+                    <RequireAuth><HomePage/></RequireAuth>
+                }/>
+                <Route path="/upload" element={
+                    <RequireAuth roles={['uploader', 'admin']}><UploadPage/></RequireAuth>
+                }/>
+                <Route path="/view/:id" element={
+                    <RequireAuth><ModelDetailPage/></RequireAuth>
+                }/>
+                <Route path="/edit/:id" element={
+                    <RequireAuth roles={['uploader', 'admin']}><EditPage/></RequireAuth>
+                }/>
+
+                <Route path="*" element={<Navigate to="/login" replace/>}/>
+            </Routes>
+        </BrowserRouter>
+    );
 }

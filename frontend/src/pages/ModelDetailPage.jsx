@@ -4,6 +4,7 @@ import '@ant-design/v5-patch-for-react-19';
 import {Descriptions, Spin, Button, message, Typography, Divider, Tag} from 'antd';
 import {useParams, useNavigate} from 'react-router-dom';
 import api from '../services/api';
+import {useAuth} from "../contexts/AuthContext.jsx";
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -39,6 +40,8 @@ const sanitizeSchema = {
 export default function ModelDetailPage() {
     const {id} = useParams();
     const navigate = useNavigate();
+    const {hasRole} = useAuth();
+    const canEdit = hasRole(['uploader', 'admin']);
     const [model, setModel] = useState(null);
     const [loading, setLoading] = useState(false);
     const [readmeText, setReadmeText] = useState('');
@@ -73,7 +76,7 @@ export default function ModelDetailPage() {
 
     return (
         <div style={{padding: 24}}>
-            <Button onClick={() => navigate(-1)} style={{marginBottom: 16}}>Back</Button>
+            <Button onClick={() => navigate(`/`)} style={{marginBottom: 16}}>Back</Button>
             <Title level={3}>Model #{model.id} — {model.name}</Title>
 
             <Descriptions bordered column={1}>
@@ -184,7 +187,9 @@ export default function ModelDetailPage() {
             )}
 
             <div style={{marginTop: 16}}>
-                <Button type="primary" onClick={() => navigate(`/edit/${id}`)}>Edit</Button>
+                {canEdit && (
+                    <Button type="primary" onClick={() => navigate(`/edit/${id}`)}>Edit</Button>
+                )}
             </div>
         </div>
     );
