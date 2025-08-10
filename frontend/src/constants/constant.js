@@ -1,6 +1,42 @@
 // frontend/src/constants/constant.js
-const SCHEMA_MODES = ["generic", "feature-map", "image", "text", "sequence"];
-const RISK_LEVELS = ["low", "medium", "high"];
-const LICENSES = ["MIT", "Apache-2.0", "GPL-3.0", "Proprietary"];
+export const SCHEMA_MODES = ['generic', 'feature-map', 'image', 'text', 'sequence'];
+export const RISK_LEVELS = ['low', 'medium', 'high'];
 
-export {SCHEMA_MODES, RISK_LEVELS, LICENSES};
+export const LICENSES = [
+    {label: 'Academic Free License v3.0', value: 'AFL-3.0'},
+    {label: 'Apache license 2.0', value: 'Apache-2.0'},
+    {label: 'Artistic license 2.0', value: 'Artistic-2.0'},
+    {label: 'Boost Software License 1.0', value: 'BSL-1.0'},
+    {label: 'BSD 2-clause "Simplified" license', value: 'BSD-2-Clause'},
+    {label: 'BSD 3-clause "New" or "Revised" license', value: 'BSD-3-Clause'},
+    {label: 'BSD 3-clause Clear license', value: 'BSD-3-Clause-Clear'},
+    {label: 'BSD 4-clause "Original" or "Old" license', value: 'BSD-4-Clause'},
+    {label: 'BSD Zero-Clause license', value: '0BSD'},
+    {label: 'Creative Commons license family', value: 'CC'},
+    {label: 'Creative Commons Zero v1.0 Universal', value: 'CC0-1.0'},
+    {label: 'Creative Commons Attribution 4.0', value: 'CC-BY-4.0'},
+    {label: 'Creative Commons Attribution ShareAlike 4.0', value: 'CC-BY-SA-4.0'},
+    {label: 'Do What The F*ck You Want To Public License', value: 'WTFPL'},
+    {label: 'Educational Community License v2.0', value: 'ECL-2.0'},
+    {label: 'Eclipse Public License 1.0', value: 'EPL-1.0'},
+    {label: 'Eclipse Public License 2.0', value: 'EPL-2.0'},
+    {label: 'European Union Public License 1.1', value: 'EUPL-1.1'},
+    {label: 'GNU Affero General Public License v3.0', value: 'AGPL-3.0'},
+    {label: 'GNU General Public License family', value: 'GPL'},
+    {label: 'GNU General Public License v2.0', value: 'GPL-2.0'},
+    {label: 'GNU General Public License v3.0', value: 'GPL-3.0'},
+    {label: 'GNU Lesser General Public License family', value: 'LGPL'},
+    {label: 'GNU Lesser General Public License v2.1', value: 'LGPL-2.1'},
+    {label: 'GNU Lesser General Public License v3.0', value: 'LGPL-3.0'},
+    {label: 'ISC', value: 'ISC'},
+    {label: 'LaTeX Project Public License v1.3c', value: 'LPPL-1.3c'},
+    {label: 'Microsoft Public License', value: 'MS-PL'},
+    {label: 'MIT', value: 'MIT'},
+    {label: 'Mozilla Public License 2.0', value: 'MPL-2.0'},
+    {label: 'Open Software License 3.0', value: 'OSL-3.0'},
+    {label: 'PostgreSQL License', value: 'PostgreSQL'},
+    {label: 'SIL Open Font License 1.1', value: 'OFL-1.1'},
+    {label: 'University of Illinois/NCSA Open Source License', value: 'NCSA'},
+    {label: 'The Unlicense', value: 'Unlicense'},
+    {label: 'zLib License', value: 'Zlib'}
+];

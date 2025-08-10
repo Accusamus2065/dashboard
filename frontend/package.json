@@ -16,7 +16,12 @@
     "react-router-dom": "^7.7.1",
     "antd": "^5.26.7",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
-    "@ant-design/icons": "^6.0.0"
+    "@ant-design/icons": "^6.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "github-markdown-css": "^5.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
