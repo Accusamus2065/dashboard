@@ -40,3 +40,11 @@ export const LICENSES = [
     {label: 'The Unlicense', value: 'Unlicense'},
     {label: 'zLib License', value: 'Zlib'}
 ];
+
+// Compliance types and requirements
+export const COMPLIANCE_DOC_TYPES = ['FRIA', 'DPIA', 'PRIVACY', 'TERMS', 'OTHER'];
+export const REQUIRED_DOCS_BY_RISK = {
+    high: ['FRIA', 'DPIA', 'PRIVACY'],
+    medium: ['PRIVACY'],
+    low: []
+};

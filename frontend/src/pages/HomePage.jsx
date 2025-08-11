@@ -2,7 +2,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import {
-    Table, Typography, Button, Input, Space, Select, Popconfirm, message, Tag, Divider
+    Table, Typography, Button, Input, Space, Select, Popconfirm, message, Tag, Divider, Alert
 } from 'antd';
 import {
     PlusOutlined, EyeOutlined, DeleteOutlined, PlayCircleOutlined, EditOutlined
@@ -20,13 +20,16 @@ export default function HomePage() {
     const navigate = useNavigate();
     const {user, hasRole, logout} = useAuth();
 
-    // role gates
     const canUpload = hasRole(['uploader', 'admin']);
     const canEdit = hasRole(['uploader', 'admin']);
     const canDelete = hasRole('admin');
 
     const [models, setModels] = useState([]);
     const [loading, setLoading] = useState(false);
+
+    // compliance status
+    const [cStatus, setCStatus] = useState([]); // [{model_id, missing:[..], pending:n, approved:n}]
+    const [showOnlyMissing, setShowOnlyMissing] = useState(false);
 
     // filters
     const [nameSearch, setNameSearch] = useState('');
@@ -50,17 +53,25 @@ export default function HomePage() {
         }
     };
 
+    const loadComplianceStatus = async () => {
+        try {
+            const res = await api.get('/compliance/status');
+            setCStatus(res.data || []);
+        } catch {
+            setCStatus([]);
+        }
+    };
+
     useEffect(() => {
         loadModels();
+        loadComplianceStatus();
     }, []);
 
-    const resetFilters = () => {
-        setNameSearch('');
-        setDescSearch('');
-        setSchemaFilter(undefined);
-        setRiskFilter(undefined);
-        setCurrentPage(1);
-    };
+    const statusMap = useMemo(() => {
+        const m = new Map();
+        cStatus.forEach(s => m.set(s.model_id, s));
+        return m;
+    }, [cStatus]);
 
     const filteredData = useMemo(() => {
         const n = (nameSearch || '').toLowerCase();
@@ -71,52 +82,47 @@ export default function HomePage() {
                 if (d && !(m.description || '').toLowerCase().includes(d)) return false;
                 if (schemaFilter && m.input_schema !== schemaFilter) return false;
                 if (riskFilter && m.risk_level !== riskFilter) return false;
+                const st = statusMap.get(m.id);
+                if (showOnlyMissing && st && st.missing.length === 0) return false;
                 return true;
-            })
-            .map((m, idx) => ({...m, _seq: idx + 1})); // pre-seq for stable numbering if needed
-    }, [models, nameSearch, descSearch, schemaFilter, riskFilter]);
+            });
+    }, [models, nameSearch, descSearch, schemaFilter, riskFilter, showOnlyMissing, statusMap]);
+
+    const missingCountTotal = cStatus.filter(s => s.missing.length > 0).length;
 
     const columns = [
         {
             title: '#',
-            dataIndex: '_number',
             key: 'number',
             width: 70,
             render: (_t, _r, index) => ((currentPage - 1) * pageSize) + index + 1,
         },
-        {
-            title: 'Name',
-            dataIndex: 'name',
-            key: 'name',
-            render: (val) => <Text strong>{val}</Text>,
-        },
-        {
-            title: 'Version',
-            dataIndex: 'version',
-            key: 'version',
-            width: 120,
-        },
-        {
-            title: 'Brief Description',
-            dataIndex: 'description',
-            key: 'description',
-            ellipsis: true,
-        },
+        {title: 'Name', dataIndex: 'name', key: 'name', render: v => <Text strong>{v}</Text>},
+        {title: 'Version', dataIndex: 'version', key: 'version', width: 120},
+        {title: 'Brief Description', dataIndex: 'description', key: 'description', ellipsis: true},
         {
             title: 'Input Schema',
             dataIndex: 'input_schema',
             key: 'input_schema',
             width: 140,
-            render: (s) => <Tag>{s}</Tag>,
+            render: s => <Tag>{s}</Tag>
         },
         {
-            title: 'Risk',
-            dataIndex: 'risk_level',
-            key: 'risk_level',
-            width: 110,
-            render: (r) => {
-                const color = r === 'high' ? 'red' : r === 'medium' ? 'orange' : 'green';
-                return <Tag color={color}>{r}</Tag>;
+            title: 'Risk', dataIndex: 'risk_level', key: 'risk_level', width: 110,
+            render: r => <Tag color={r === 'high' ? 'red' : r === 'medium' ? 'orange' : 'green'}>{r}</Tag>
+        },
+        {
+            title: 'Compliance',
+            key: 'compliance',
+            width: 220,
+            render: (_t, r) => {
+                const st = statusMap.get(r.id);
+                if (!st) return '—';
+                const tags = [];
+                if (st.missing.length > 0) tags.push(<Tag key="missing" color="red">Missing {st.missing.length}</Tag>);
+                if (st.pending > 0) tags.push(<Tag key="pending" color="gold">Pending {st.pending}</Tag>);
+                if (st.missing.length === 0 && st.pending === 0) tags.push(<Tag key="ok" color="green">Compliant</Tag>);
+                return <Space>{tags}</Space>;
             }
         },
         {
@@ -133,29 +139,14 @@ export default function HomePage() {
         {
             title: 'Actions',
             key: 'actions',
-            width: 280,
+            width: 300,
             render: (_t, record) => (
                 <Space wrap>
-                    <Button
-                        icon={<EyeOutlined/>}
-                        onClick={() => navigate(`/view/${record.id}`)}
-                    >
-                        View
-                    </Button>
-                    <Button
-                        icon={<PlayCircleOutlined/>}
-                        onClick={() => navigate(`/predict/${record.id}`)}
-                    >
-                        Predict
-                    </Button>
-                    {canEdit && (
-                        <Button
-                            icon={<EditOutlined/>}
-                            onClick={() => navigate(`/edit/${record.id}`)}
-                        >
-                            Edit
-                        </Button>
-                    )}
+                    <Button icon={<EyeOutlined/>} onClick={() => navigate(`/view/${record.id}`)}>View</Button>
+                    <Button icon={<PlayCircleOutlined/>}
+                            onClick={() => navigate(`/predict/${record.id}`)}>Predict</Button>
+                    {canEdit &&
+                        <Button icon={<EditOutlined/>} onClick={() => navigate(`/edit/${record.id}`)}>Edit</Button>}
                     {canDelete && (
                         <Popconfirm
                             title="Confirm delete?"
@@ -164,14 +155,13 @@ export default function HomePage() {
                                     await api.delete(`/models/${record.id}`);
                                     message.success('Deleted');
                                     loadModels();
+                                    loadComplianceStatus();
                                 } catch (e) {
                                     message.error(e.response?.data?.error || 'Delete failed');
                                 }
                             }}
                         >
-                            <Button icon={<DeleteOutlined/>} danger>
-                                Delete
-                            </Button>
+                            <Button icon={<DeleteOutlined/>} danger>Delete</Button>
                         </Popconfirm>
                     )}
                 </Space>
@@ -184,115 +174,63 @@ export default function HomePage() {
             <Space style={{width: '100%', justifyContent: 'space-between', marginBottom: 8}}>
                 <Title level={2} style={{margin: 0}}>Model Registry</Title>
                 <Space>
-                    <Text type="secondary">
-                        {user?.email} · <b>{user?.role}</b>
-                    </Text>
+                    <Text type="secondary">{user?.email} · <b>{user?.role}</b></Text>
                     <Button onClick={logout}>Logout</Button>
                 </Space>
             </Space>
 
             <Divider style={{marginTop: 12}}/>
 
+            {missingCountTotal > 0 && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    style={{marginBottom: 12}}
+                    message={`${missingCountTotal} model(s) are missing required compliance docs`}
+                    action={<Button size="small" onClick={() => setShowOnlyMissing(true)}>Show Missing Only</Button>}
+                />
+            )}
+
             <Space wrap style={{marginBottom: 16}}>
                 {canUpload && (
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined/>}
-                        onClick={() => navigate('/upload')}
-                    >
+                    <Button type="primary" icon={<PlusOutlined/>} onClick={() => navigate('/upload')}>
                         Upload Model
                     </Button>
                 )}
 
-                {/* Name search */}
-                <label htmlFor="search-name" style={{position: 'absolute', left: -9999}}>
-                    Search Name
-                </label>
-                <Search
-                    id="search-name"
-                    placeholder="Search Name"
-                    allowClear
-                    autoComplete="off"
-                    aria-label="search by name"
-                    value={nameSearch}
-                    onChange={(e) => setNameSearch(e.target.value)}
-                    onSearch={(val) => setNameSearch(val)}
-                    style={{width: 220}}
-                />
+                <label htmlFor="search-name" style={{position: 'absolute', left: -9999}}>Search Name</label>
+                <Search id="search-name" placeholder="Search Name" allowClear autoComplete="off"
+                        value={nameSearch} onChange={(e) => setNameSearch(e.target.value)}
+                        style={{width: 220}}/>
 
-                {/* Description search */}
-                <label htmlFor="search-desc" style={{position: 'absolute', left: -9999}}>
-                    Search Description
-                </label>
-                <Search
-                    id="search-desc"
-                    placeholder="Search Description"
-                    allowClear
-                    autoComplete="off"
-                    aria-label="search by description"
-                    value={descSearch}
-                    onChange={(e) => setDescSearch(e.target.value)}
-                    onSearch={(val) => setDescSearch(val)}
-                    style={{width: 260}}
-                />
+                <label htmlFor="search-desc" style={{position: 'absolute', left: -9999}}>Search Description</label>
+                <Search id="search-desc" placeholder="Search Description" allowClear autoComplete="off"
+                        value={descSearch} onChange={(e) => setDescSearch(e.target.value)}
+                        style={{width: 260}}/>
 
-                {/* Schema filter */}
-                <label htmlFor="filter-schema" style={{position: 'absolute', left: -9999}}>
-                    Filter by Input Schema
-                </label>
-                <Select
-                    id="filter-schema"
-                    placeholder="Filter: Input Schema"
-                    aria-label="filter by input schema"
-                    allowClear
-                    style={{width: 200}}
-                    value={schemaFilter}
-                    onChange={(val) => setSchemaFilter(val)}
-                >
-                    {SCHEMA_MODES.map(s => (
-                        <Option key={s} value={s}>{s}</Option>
-                    ))}
+                <Select id="filter-schema" placeholder="Filter: Input Schema" allowClear style={{width: 200}}
+                        value={schemaFilter} onChange={setSchemaFilter}>
+                    {SCHEMA_MODES.map(s => <Option key={s} value={s}>{s}</Option>)}
                 </Select>
 
-                {/* Risk filter */}
-                <label htmlFor="filter-risk" style={{position: 'absolute', left: -9999}}>
-                    Filter by Risk
-                </label>
-                <Select
-                    id="filter-risk"
-                    placeholder="Filter: Risk"
-                    aria-label="filter by risk"
-                    allowClear
-                    style={{width: 160}}
-                    value={riskFilter}
-                    onChange={(val) => setRiskFilter(val)}
-                >
-                    {RISK_LEVELS.map(r => (
-                        <Option key={r} value={r}>{r}</Option>
-                    ))}
+                <Select id="filter-risk" placeholder="Filter: Risk" allowClear style={{width: 160}}
+                        value={riskFilter} onChange={setRiskFilter}>
+                    {RISK_LEVELS.map(r => <Option key={r} value={r}>{r}</Option>)}
                 </Select>
 
-                {/* Page size */}
                 <div>
                     <label htmlFor="page-size" style={{marginRight: 8}}>Rows per page:</label>
-                    <Select
-                        id="page-size"
-                        aria-label="rows per page"
-                        value={pageSize}
-                        onChange={(val) => {
-                            setPageSize(val);
-                            setCurrentPage(1);
-                        }}
-                        style={{width: 100}}
-                    >
-                        {[5, 10, 20, 50].map(n => (
-                            <Option key={n} value={n}>{n}</Option>
-                        ))}
+                    <Select id="page-size" value={pageSize} onChange={(val) => {
+                        setPageSize(val);
+                        setCurrentPage(1);
+                    }}
+                            style={{width: 100}}>
+                        {[5, 10, 20, 50].map(n => <Option key={n} value={n}>{n}</Option>)}
                     </Select>
                 </div>
 
-                {/* Reset */}
-                <Button onClick={resetFilters}>Reset Filters</Button>
+                <Button onClick={() => setShowOnlyMissing(false)} disabled={!showOnlyMissing}>Clear Missing
+                    Filter</Button>
             </Space>
 
             <Table
@@ -312,4 +250,3 @@ export default function HomePage() {
         </div>
     );
 }
-

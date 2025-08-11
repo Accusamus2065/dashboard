@@ -10,6 +10,7 @@ const jwt = require('jsonwebtoken');
 
 const {Model, SCHEMA_MODES, RISK_LEVELS, LICENSES} = require('./models/model');
 const {User, USER_ROLES} = require('./models/user');
+const {ComplianceDoc, COMPLIANCE_TYPES, REVIEW_STATUSES} = require('./models/complianceDoc');
 const sequelize = require('./config/sequelize');
 
 const app = express();
@@ -63,6 +64,11 @@ const upload = multer({
 });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
+// ---- Associations (must be before sync) ----
+ComplianceDoc.belongsTo(Model, {foreignKey: 'model_id'});
+ComplianceDoc.belongsTo(User, {as: 'uploader', foreignKey: 'uploaded_by'});
+ComplianceDoc.belongsTo(User, {as: 'reviewer', foreignKey: 'reviewer_id'});
+
 // ---- DB sync & seed admin ----
 sequelize.sync({alter: true})
     .then(async () => {
@@ -96,6 +102,13 @@ const safeParseArray = v => {
         }
     }
     return null;
+};
+
+// Compliance requirements by risk
+const REQUIRED_DOCS = {
+    high: ['FRIA', 'DPIA', 'PRIVACY'],
+    medium: ['PRIVACY'],
+    low: []
 };
 
 // ---- AUTH ROUTES ----
@@ -289,7 +302,136 @@ app.delete('/models/:id', authRequired, requireRole('admin'), async (req, res, n
     }
 });
 
-// Error handler
+// ---- COMPLIANCE DOC ROUTES ----
+
+// List docs of a model
+app.get('/models/:id/compliance-docs', authRequired, async (req, res, next) => {
+    try {
+        const modelId = Number(req.params.id);
+        const docs = await ComplianceDoc.findAll({
+            where: {model_id: modelId},
+            order: [['id', 'ASC']],
+            include: [
+                {model: User, as: 'uploader', attributes: ['id', 'email']},
+                {model: User, as: 'reviewer', attributes: ['id', 'email']},
+            ]
+        });
+        res.json(docs);
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Upload a compliance doc
+app.post(
+    '/models/:id/compliance-docs',
+    authRequired, requireRole(['uploader', 'admin']),
+    upload.single('doc'),
+    async (req, res, next) => {
+        try {
+            const modelId = Number(req.params.id);
+            const {type} = req.body || {};
+            if (!COMPLIANCE_TYPES.includes(type)) return res.status(400).json({error: 'Invalid type'});
+            if (!req.file) return res.status(400).json({error: 'File (field: doc) is required'});
+            const doc = await ComplianceDoc.create({
+                model_id: modelId,
+                type,
+                uri: `/uploads/${req.file.filename}`,
+                uploaded_by: req.user.uid,
+                status: 'pending'
+            });
+            res.status(201).json(doc);
+        } catch (err) {
+            next(err);
+        }
+    }
+);
+
+// Review (approve/reject)
+app.put(
+    '/compliance-docs/:docId/review',
+    authRequired, requireRole(['auditor', 'admin']),
+    async (req, res, next) => {
+        try {
+            const {status, note} = req.body || {};
+            if (!['approved', 'rejected'].includes(status)) {
+                return res.status(400).json({error: 'status must be "approved" or "rejected"'});
+            }
+            const doc = await ComplianceDoc.findByPk(req.params.docId);
+            if (!doc) return res.status(404).json({error: 'Doc not found'});
+            await doc.update({
+                status,
+                reviewer_id: req.user.uid,
+                reviewed_at: new Date(),
+                note: note || null
+            });
+            res.json(doc);
+        } catch (err) {
+            next(err);
+        }
+    }
+);
+
+// Delete doc (admin or uploader self)
+app.delete('/compliance-docs/:docId', authRequired, async (req, res, next) => {
+    try {
+        const doc = await ComplianceDoc.findByPk(req.params.docId);
+        if (!doc) return res.sendStatus(404);
+        if (req.user.role !== 'admin' && req.user.uid !== doc.uploaded_by) {
+            return res.status(403).json({error: 'Forbidden'});
+        }
+        const fpath = path.join(__dirname, '../', doc.uri);
+        fs.unlink(fpath, () => {
+        });
+        await doc.destroy();
+        res.sendStatus(204);
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Compliance status across models
+app.get('/compliance/status', authRequired, async (_req, res, next) => {
+    try {
+        const models = await Model.findAll({attributes: ['id', 'name', 'risk_level']});
+        const docs = await ComplianceDoc.findAll({attributes: ['id', 'model_id', 'type', 'status']});
+
+        const byModel = new Map();
+        docs.forEach(d => {
+            const arr = byModel.get(d.model_id) || [];
+            arr.push(d);
+            byModel.set(d.model_id, arr);
+        });
+
+        const out = models.map(m => {
+            const required = REQUIRED_DOCS[m.risk_level] || [];
+            const list = byModel.get(m.id) || [];
+            const approvedSet = new Set(list.filter(x => x.status === 'approved').map(x => x.type));
+            const pending = list.filter(x => x.status === 'pending').length;
+            const missing = required.filter(t => !approvedSet.has(t));
+            return {
+                model_id: m.id,
+                name: m.name,
+                risk_level: m.risk_level,
+                required,
+                missing,
+                pending,
+                approved: list.filter(x => x.status === 'approved').length
+            };
+        });
+
+        res.json(out);
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Requirements helper (optional)
+app.get('/compliance/requirements', authRequired, (_req, res) => {
+    res.json({REQUIRED_DOCS, COMPLIANCE_TYPES, REVIEW_STATUSES});
+});
+
+// ---- Error handler ----
 app.use((err, _req, res, _next) => {
     console.error(err);
     res.status(500).json({error: err.message});
