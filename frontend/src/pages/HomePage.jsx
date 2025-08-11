@@ -5,7 +5,7 @@ import {
     Table, Typography, Button, Input, Space, Select, Popconfirm, message, Tag, Divider, Alert
 } from 'antd';
 import {
-    PlusOutlined, EyeOutlined, DeleteOutlined, PlayCircleOutlined, EditOutlined
+    PlusOutlined, EyeOutlined, DeleteOutlined, PlayCircleOutlined, EditOutlined, TeamOutlined
 } from '@ant-design/icons';
 import {useNavigate} from 'react-router-dom';
 import api from '../services/api';
@@ -174,7 +174,17 @@ export default function HomePage() {
             <Space style={{width: '100%', justifyContent: 'space-between', marginBottom: 8}}>
                 <Title level={2} style={{margin: 0}}>Model Registry</Title>
                 <Space>
-                    <Text type="secondary">{user?.email} · <b>{user?.role}</b></Text>
+                    {user?.role === 'admin' && (
+                        <Button
+                            icon={<TeamOutlined />}
+                            onClick={() => navigate('/admin/users')}
+                        >
+                            User Management
+                        </Button>
+                    )}
+                    <Text type="secondary">
+                        {user?.email} · <b>{user?.role}</b>
+                    </Text>
                     <Button onClick={logout}>Logout</Button>
                 </Space>
             </Space>

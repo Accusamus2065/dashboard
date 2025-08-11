@@ -7,6 +7,7 @@ import ModelDetailPage from './pages/ModelDetailPage';
 import EditPage from './pages/EditPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import AdminUsersPage from './pages/AdminUsersPage';
 import {useAuth} from './contexts/AuthContext';
 
 function RequireAuth({children, roles}) {
@@ -17,27 +18,20 @@ function RequireAuth({children, roles}) {
 }
 
 export default function App() {
-    return (
-        <BrowserRouter>
+    return (<BrowserRouter>
             <Routes>
                 <Route path="/login" element={<LoginPage/>}/>
                 <Route path="/register" element={<RegisterPage/>}/>
 
-                <Route path="/" element={
-                    <RequireAuth><HomePage/></RequireAuth>
-                }/>
-                <Route path="/upload" element={
-                    <RequireAuth roles={['uploader', 'admin']}><UploadPage/></RequireAuth>
-                }/>
-                <Route path="/view/:id" element={
-                    <RequireAuth><ModelDetailPage/></RequireAuth>
-                }/>
-                <Route path="/edit/:id" element={
-                    <RequireAuth roles={['uploader', 'admin']}><EditPage/></RequireAuth>
-                }/>
+                <Route path="/" element={<RequireAuth><HomePage/></RequireAuth>}/>
+                <Route path="/upload" element={<RequireAuth roles={['uploader', 'admin']}><UploadPage/></RequireAuth>}/>
+                <Route path="/view/:id" element={<RequireAuth><ModelDetailPage/></RequireAuth>}/>
+                <Route path="/edit/:id" element={<RequireAuth roles={['uploader', 'admin']}><EditPage/></RequireAuth>}/>
+
+                {/* Admin only */}
+                <Route path="/admin/users" element={<RequireAuth roles={['admin']}><AdminUsersPage/></RequireAuth>}/>
 
                 <Route path="*" element={<Navigate to="/login" replace/>}/>
             </Routes>
-        </BrowserRouter>
-    );
+        </BrowserRouter>);
 }

@@ -43,6 +43,8 @@ export default function ModelDetailPage() {
     const navigate = useNavigate();
     const {hasRole, user} = useAuth();
 
+    const canEdit = hasRole(['uploader', 'admin']);
+
     const [model, setModel] = useState(null);
     const [loading, setLoading] = useState(false);
     const [readmeText, setReadmeText] = useState('');
@@ -57,6 +59,7 @@ export default function ModelDetailPage() {
     const [docs, setDocs] = useState([]);
     const [reviewModal, setReviewModal] = useState({open: false, id: null, status: 'approved', note: ''});
 
+    // Load model
     useEffect(() => {
         setLoading(true);
         api.get(`/models/${id}`)
@@ -65,6 +68,7 @@ export default function ModelDetailPage() {
             .finally(() => setLoading(false));
     }, [id]);
 
+    // Load README content
     useEffect(() => {
         const loadReadme = async () => {
             if (!model?.readme_uri) {
@@ -83,6 +87,7 @@ export default function ModelDetailPage() {
         loadReadme();
     }, [model?.readme_uri]);
 
+    // Compliance docs
     const loadCompliance = async () => {
         try {
             const res = await api.get(`/models/${id}/compliance-docs`);
@@ -157,20 +162,22 @@ export default function ModelDetailPage() {
                     <Space>
                         {canReview && r.status === 'pending' && (
                             <>
-                                <Button icon={<CheckCircleOutlined/>} onClick={() => setReviewModal({
-                                    open: true,
-                                    id: r.id,
-                                    status: 'approved',
-                                    note: ''
-                                })}>
+                                <Button icon={<CheckCircleOutlined/>}
+                                        onClick={() => setReviewModal({
+                                            open: true,
+                                            id: r.id,
+                                            status: 'approved',
+                                            note: ''
+                                        })}>
                                     Approve
                                 </Button>
-                                <Button danger icon={<CloseCircleOutlined/>} onClick={() => setReviewModal({
-                                    open: true,
-                                    id: r.id,
-                                    status: 'rejected',
-                                    note: ''
-                                })}>
+                                <Button danger icon={<CloseCircleOutlined/>}
+                                        onClick={() => setReviewModal({
+                                            open: true,
+                                            id: r.id,
+                                            status: 'rejected',
+                                            note: ''
+                                        })}>
                                     Reject
                                 </Button>
                             </>
@@ -212,10 +219,64 @@ export default function ModelDetailPage() {
                 <Descriptions.Item label="Artifact">
                     <a href={`http://localhost:3000${model.artifact_uri}`} download>Download</a>
                 </Descriptions.Item>
+
+                {(model.baseline_latency_ms != null ||
+                    model.baseline_accuracy != null ||
+                    model.baseline_f1 != null ||
+                    model.baseline_auc != null) && (
+                    <Descriptions.Item label="Baseline Metrics">
+                        {model.baseline_latency_ms != null &&
+                            <span>Latency: {model.baseline_latency_ms} ms&nbsp;&nbsp;</span>}
+                        {model.baseline_accuracy != null &&
+                            <span>Accuracy: {model.baseline_accuracy}&nbsp;&nbsp;</span>}
+                        {model.baseline_f1 != null && <span>F1: {model.baseline_f1}&nbsp;&nbsp;</span>}
+                        {model.baseline_auc != null && <span>AUC: {model.baseline_auc}</span>}
+                    </Descriptions.Item>
+                )}
+
+                {Array.isArray(model.business_tags) && model.business_tags.length > 0 && (
+                    <Descriptions.Item label="Business Tags">
+                        {model.business_tags.map((t, i) => <Tag key={i}>{t}</Tag>)}
+                    </Descriptions.Item>
+                )}
+
+                {/* 注意：后端会按角色移除这些字段；这里“存在才显示”，没有权限时也不会出现 */}
+                {model.owner_contact && (
+                    <Descriptions.Item label="Owner Contact">{model.owner_contact}</Descriptions.Item>
+                )}
+
+                {model.license && (
+                    <Descriptions.Item label="License">{model.license}</Descriptions.Item>
+                )}
+
+                {Array.isArray(model.training_data_uris) && model.training_data_uris.length > 0 && (
+                    <Descriptions.Item label="Training Data">
+                        {model.training_data_uris.map((u, i) => (
+                            <div key={i}>
+                                <a href={`http://localhost:3000${u}`} target="_blank" rel="noreferrer">
+                                    {u.split('/').pop()}
+                                </a>
+                            </div>
+                        ))}
+                    </Descriptions.Item>
+                )}
+
+                {Array.isArray(model.validation_data_uris) && model.validation_data_uris.length > 0 && (
+                    <Descriptions.Item label="Validation Data">
+                        {model.validation_data_uris.map((u, i) => (
+                            <div key={i}>
+                                <a href={`http://localhost:3000${u}`} target="_blank" rel="noreferrer">
+                                    {u.split('/').pop()}
+                                </a>
+                            </div>
+                        ))}
+                    </Descriptions.Item>
+                )}
             </Descriptions>
 
             <Divider/>
 
+            {/* 合规文档管理 */}
             <Title level={4} style={{marginBottom: 8}}>Compliance Documents</Title>
             <Alert
                 type="info"
@@ -298,6 +359,12 @@ export default function ModelDetailPage() {
                     rows={4}
                 />
             </Modal>
+
+            <div style={{marginTop: 16}}>
+                {canEdit && (
+                    <Button type="primary" onClick={() => navigate(`/edit/${id}`)}>Edit</Button>
+                )}
+            </div>
         </div>
     );
 }

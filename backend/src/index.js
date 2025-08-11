@@ -24,13 +24,16 @@ function signToken(user) {
     return jwt.sign({uid: user.id, role: user.role}, JWT_SECRET, {expiresIn: '7d'});
 }
 
-function authRequired(req, res, next) {
+// fetch latest role from DB on every request
+async function authRequired(req, res, next) {
     const auth = req.headers.authorization || '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     if (!token) return res.status(401).json({error: 'Unauthorized'});
     try {
-        const payload = jwt.verify(token, JWT_SECRET);
-        req.user = payload; // {uid, role}
+        const payload = jwt.verify(token, JWT_SECRET); // { uid, role?(stale) }
+        const dbUser = await User.findByPk(payload.uid, {attributes: ['id', 'role']});
+        if (!dbUser) return res.status(401).json({error: 'Unauthorized'});
+        req.user = {uid: dbUser.id, role: dbUser.role}; // always trust DB
         next();
     } catch {
         return res.status(401).json({error: 'Invalid token'});
@@ -104,6 +107,26 @@ const safeParseArray = v => {
     return null;
 };
 
+// field-level redaction by role
+function sanitizeModelForRole(modelRec, role) {
+    const obj = modelRec.toJSON ? modelRec.toJSON() : {...modelRec};
+    const r = role || 'viewer';
+
+    if (r === 'admin' || r === 'uploader') {
+        return obj; // full access
+    }
+    if (r === 'auditor') {
+        delete obj.training_data_uris;
+        delete obj.validation_data_uris;
+        return obj;
+    }
+    // viewer or unknown -> strictest
+    delete obj.owner_contact;
+    delete obj.training_data_uris;
+    delete obj.validation_data_uris;
+    return obj;
+}
+
 // Compliance requirements by risk
 const REQUIRED_DOCS = {
     high: ['FRIA', 'DPIA', 'PRIVACY'],
@@ -154,11 +177,12 @@ app.put('/admin/users/:id/role', authRequired, requireRole('admin'), async (req,
 });
 
 // ---- MODEL ROUTES (protected) ----
-// Everyone logged-in can list & view
-app.get('/models', authRequired, async (_req, res, next) => {
+// Everyone logged-in can list & view (with field-level sanitize)
+app.get('/models', authRequired, async (req, res, next) => {
     try {
         const list = await Model.findAll({order: [['id', 'ASC']]});
-        res.json(list);
+        const safe = list.map(m => sanitizeModelForRole(m, req.user.role));
+        res.json(safe);
     } catch (err) {
         next(err);
     }
@@ -168,7 +192,7 @@ app.get('/models/:id', authRequired, async (req, res, next) => {
     try {
         const rec = await Model.findByPk(req.params.id);
         if (!rec) return res.status(404).json({error: 'Not found'});
-        res.json(rec);
+        res.json(sanitizeModelForRole(rec, req.user.role));
     } catch (err) {
         next(err);
     }
