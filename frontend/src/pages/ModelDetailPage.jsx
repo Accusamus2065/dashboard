@@ -334,7 +334,7 @@ export default function ModelDetailPage() {
                         components={{
                             a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer"/>,
                             img: ({node, ...props}) => <img {...props} loading="lazy"
-                                                            style={{maxWidth: '100%', height: 'auto'}}/>
+                                                            style={{maxWidth: '100%', height: 'auto'}} alt={}/>
                         }}
                     >
                         {readmeText}

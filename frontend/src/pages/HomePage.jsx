@@ -83,8 +83,8 @@ export default function HomePage() {
                 if (schemaFilter && m.input_schema !== schemaFilter) return false;
                 if (riskFilter && m.risk_level !== riskFilter) return false;
                 const st = statusMap.get(m.id);
-                if (showOnlyMissing && st && st.missing.length === 0) return false;
-                return true;
+                return !(showOnlyMissing && st && st.missing.length === 0);
+
             });
     }, [models, nameSearch, descSearch, schemaFilter, riskFilter, showOnlyMissing, statusMap]);
 
