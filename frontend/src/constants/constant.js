@@ -48,3 +48,11 @@ export const REQUIRED_DOCS_BY_RISK = {
     medium: ['PRIVACY'],
     low: []
 };
+
+export const SECURITY_QUESTION_BANK = [
+    "What is your favorite teacher's last name?",
+    "What city were you born in?",
+    "What was the name of your first pet?",
+    "What is your favorite book?",
+    "What is your dream job?",
+];

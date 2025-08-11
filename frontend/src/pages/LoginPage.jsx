@@ -39,6 +39,7 @@ export default function LoginPage() {
                         <Link to="/register">Register</Link>
                     </Space>
                 </Form>
+                <Button type="link" onClick={() => navigate('/forgot')}>Forgot password?</Button>
             </Card>
         </div>
     );

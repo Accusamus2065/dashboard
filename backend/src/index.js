@@ -11,6 +11,7 @@ const jwt = require('jsonwebtoken');
 const {Model, SCHEMA_MODES, RISK_LEVELS, LICENSES} = require('./models/model');
 const {User, USER_ROLES} = require('./models/user');
 const {ComplianceDoc, COMPLIANCE_TYPES, REVIEW_STATUSES} = require('./models/complianceDoc');
+const {SecurityQA} = require('./models/securityQA');
 const sequelize = require('./config/sequelize');
 
 const app = express();
@@ -30,10 +31,10 @@ async function authRequired(req, res, next) {
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     if (!token) return res.status(401).json({error: 'Unauthorized'});
     try {
-        const payload = jwt.verify(token, JWT_SECRET); // { uid, role?(stale) }
+        const payload = jwt.verify(token, JWT_SECRET);
         const dbUser = await User.findByPk(payload.uid, {attributes: ['id', 'role']});
         if (!dbUser) return res.status(401).json({error: 'Unauthorized'});
-        req.user = {uid: dbUser.id, role: dbUser.role}; // always trust DB
+        req.user = {uid: dbUser.id, role: dbUser.role};
         next();
     } catch {
         return res.status(401).json({error: 'Invalid token'});
@@ -71,6 +72,7 @@ app.use('/uploads', express.static(UPLOAD_DIR));
 ComplianceDoc.belongsTo(Model, {foreignKey: 'model_id'});
 ComplianceDoc.belongsTo(User, {as: 'uploader', foreignKey: 'uploaded_by'});
 ComplianceDoc.belongsTo(User, {as: 'reviewer', foreignKey: 'reviewer_id'});
+SecurityQA.belongsTo(User, {foreignKey: 'user_id'});
 
 // ---- DB sync & seed admin ----
 sequelize.sync({alter: true})
@@ -136,13 +138,69 @@ const REQUIRED_DOCS = {
 
 // ---- AUTH ROUTES ----
 app.post('/auth/register', async (req, res) => {
-    const {email, password} = req.body || {};
+    const {email, password, security_questions} = req.body || {};
     if (!email || !password) return res.status(400).json({error: 'Email & password required'});
+
     const existed = await User.findOne({where: {email}});
     if (existed) return res.status(409).json({error: 'Email already registered'});
+
     const hash = await bcrypt.hash(password, 10);
     const user = await User.create({email, password_hash: hash, role: 'viewer'});
+
+    // save security QAs (2~5 items)
+    if (Array.isArray(security_questions) && security_questions.length >= 2 && security_questions.length <= 5) {
+        for (const qa of security_questions) {
+            if (!qa?.question || !qa?.answer) continue;
+            const ah = await bcrypt.hash(String(qa.answer).trim(), 10);
+            await SecurityQA.create({user_id: user.id, question: String(qa.question).trim(), answer_hash: ah});
+        }
+    }
+
     res.status(201).json({id: user.id, email: user.email, role: user.role});
+});
+
+app.get('/auth/security-questions', async (req, res) => {
+    const email = String(req.query.email || '').trim();
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    const user = await User.findOne({ where: { email }, attributes: ['id', 'role'] });
+    if (!user) {
+        return res.status(409).json({ error: 'This account does not support password recovery.' });
+    }
+
+    const qas = await SecurityQA.findAll({ where: { user_id: user.id }, order: [['id', 'ASC']] });
+    if (!qas.length) {
+        return res.status(409).json({ error: 'This account does not support password recovery.' });
+    }
+
+    res.json({
+        email,
+        questions: qas.map(q => ({ question: q.question }))
+    });
+});
+
+app.post('/auth/reset-with-qa', async (req, res) => {
+    const { email, answers, new_password } = req.body || {};
+    if (!email || !Array.isArray(answers) || !new_password) {
+        return res.status(400).json({ error: 'email, answers and new_password are required' });
+    }
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) return res.status(409).json({ error: 'This account does not support password recovery.' });
+
+    const qas = await SecurityQA.findAll({ where: { user_id: user.id } });
+    if (!qas.length) return res.status(409).json({ error: 'This account does not support password recovery.' });
+
+    for (const qa of qas) {
+        const provided = answers.find(a => String(a.question).trim() === qa.question);
+        if (!provided) return res.status(400).json({ error: 'Missing answer for a question.' });
+        const ok = await bcrypt.compare(String(provided.answer).trim(), qa.answer_hash);
+        if (!ok) return res.status(401).json({ error: 'Answer verification failed.' });
+    }
+
+    const hash = await bcrypt.hash(new_password, 10);
+    await user.update({ password_hash: hash });
+    res.json({ ok: true });
 });
 
 app.post('/auth/login', async (req, res) => {
