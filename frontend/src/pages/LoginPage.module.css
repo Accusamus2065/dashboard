@@ -1,4 +1,4 @@
-/* Layout */
+/* ===== Page layout & card ===== */
 .wrapper {
     min-height: 100vh;
     display: grid;
@@ -17,7 +17,6 @@
     }
 }
 
-/* Card */
 .card {
     width: 100%;
     max-width: 420px;
@@ -31,7 +30,7 @@
     padding: 28px 28px 18px 28px;
 }
 
-/* Header */
+/* ===== Header / logo ===== */
 .header {
     display: grid;
     place-items: center;
@@ -39,7 +38,6 @@
     margin-bottom: 4px;
 }
 
-/* New logo (replaces the old gradient square) */
 .logoWrap {
     position: relative;
     width: 56px;
@@ -78,22 +76,13 @@
     }
 }
 
-/* Form tweaks */
+/* ===== Form baseline ===== */
 .form {
     margin-top: 14px;
 }
 
 .form :global(.ant-form-item) {
     margin-bottom: 14px;
-}
-
-.form :global(.ant-input),
-.form :global(.ant-input-password .ant-input) {
-    border-radius: 10px;
-}
-
-.form :global(.ant-input-affix-wrapper) {
-    border-radius: 10px;
 }
 
 .form :global(.ant-input:focus),
@@ -103,7 +92,108 @@
     border-color: #6366f1;
 }
 
-/* Primary button */
+/* ===== Notched floating label ===== */
+.floatField {
+    position: relative;
+}
+
+.notchBox {
+    --gap: 80px; /* safe default */
+    --stroke: rgba(100, 116, 139, 0.35);
+    --bg: #fff;
+    position: relative;
+    border: 1px solid var(--stroke);
+    border-radius: 9999px;
+    padding: 0;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+
+@media (prefers-color-scheme: dark) {
+    .notchBox {
+        --stroke: rgba(148, 163, 184, 0.28);
+        --bg: #0f172a;
+    }
+}
+
+.notchBox:focus-within {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
+}
+
+.notchBox.floated::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--gap, 80px);
+    height: 2px;
+    background: var(--bg);
+}
+
+.innerInput,
+.pwdAffix {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent;
+    border-radius: 9999px !important;
+    height: 48px;
+}
+
+.innerInput {
+    padding: 16px 14px 10px 14px;
+}
+
+.pwdAffix {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+}
+
+.pwdAffix :global(.ant-input) {
+    height: 48px;
+    padding: 16px 0 10px 2px;
+    background: transparent;
+}
+
+.floatLabel {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1;
+    pointer-events: none;
+    transition: all 0.18s ease;
+    z-index: 2;
+    padding: 0 8px;
+    border-radius: 9999px;
+    background: var(--bg);
+}
+
+@media (prefers-color-scheme: light) {
+    .floatLabel {
+        --bg: #fff;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    .floatLabel {
+        --bg: #0f172a;
+    }
+}
+
+.floatField:focus-within .floatLabel,
+.hasValue .floatLabel {
+    top: 0;
+    transform: translateY(-50%);
+    font-size: 11px;
+    color: #6366f1;
+}
+
+/* Primary submit button */
 .submitBtn :global(.ant-btn) {
     height: 44px;
     border-radius: 12px;
@@ -119,7 +209,7 @@
     box-shadow: 0 10px 24px rgba(99, 102, 241, 0.4);
 }
 
-/* Meta links */
+/* Meta links & fade-in */
 .metaRow {
     display: flex;
     gap: 8px;
@@ -141,7 +231,6 @@
     margin-top: 6px;
 }
 
-/* Small fade-in */
 .fadeIn {
     animation: fadeIn 260ms ease-out both;
 }

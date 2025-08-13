@@ -1,5 +1,5 @@
 // frontend/src/pages/LoginPage.jsx
-import React from 'react';
+import React, {useEffect, useLayoutEffect, useRef} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import {Button, Card, Form, Input, Typography, message} from 'antd';
 import {useNavigate, Link} from 'react-router-dom';
@@ -11,6 +11,42 @@ const {Title, Text} = Typography;
 export default function LoginPage() {
     const {login} = useAuth();
     const navigate = useNavigate();
+
+    // AntD form + watch
+    const [form] = Form.useForm();
+    const emailValue = Form.useWatch('email', form) || '';
+    const passwordValue = Form.useWatch('password', form) || '';
+
+    const emailLabelRef = useRef(null);
+    const emailBoxRef = useRef(null);
+    const pwdLabelRef = useRef(null);
+    const pwdBoxRef = useRef(null);
+
+    const applyGap = () => {
+        const pad = 16;
+        if (emailLabelRef.current && emailBoxRef.current) {
+            const w = Math.ceil(emailLabelRef.current.getBoundingClientRect().width) + pad * 2;
+            emailBoxRef.current.style.setProperty('--gap', `${w}px`);
+        }
+        if (pwdLabelRef.current && pwdBoxRef.current) {
+            const w = Math.ceil(pwdLabelRef.current.getBoundingClientRect().width) + pad * 2;
+            pwdBoxRef.current.style.setProperty('--gap', `${w}px`);
+        }
+    };
+
+    useLayoutEffect(() => {
+        applyGap();
+    }, []);
+
+    useEffect(() => {
+        const onResize = () => applyGap();
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+
+    useEffect(() => {
+        applyGap();
+    }, [emailValue, passwordValue]);
 
     const onFinish = async (v) => {
         try {
@@ -27,7 +63,6 @@ export default function LoginPage() {
                 <header className={styles.header}>
                     <div className={styles.logoWrap} aria-hidden>
                         <span className={styles.logoGlow}/>
-                        {/* Lock icon for clearer auth context */}
                         <svg className={styles.logoSvg} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                             <path
                                 d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5Zm-3 8V7a3 3 0 1 1 6 0v3H9Zm3 4a1.75 1.75 0 0 1 1 3.2V19a1 1 0 1 1-2 0v-1.8A1.75 1.75 0 0 1 12 14Z"/>
@@ -37,21 +72,51 @@ export default function LoginPage() {
                     <Text className={styles.subtitle}>Welcome back — let’s get you in</Text>
                 </header>
 
-                <Form layout="vertical" onFinish={onFinish} className={styles.form} size="large">
+                <Form
+                    form={form}
+                    layout="vertical"
+                    onFinish={onFinish}
+                    className={styles.form}
+                    size="large"
+                    requiredMark={false}
+                    autoComplete="on"
+                >
                     <Form.Item
                         name="email"
-                        label="Email"
                         rules={[{required: true, message: 'Please enter your email'}, {type: 'email'}]}
                     >
-                        <Input autoComplete="email" placeholder="you@example.com"/>
+                        <div className={`${styles.floatField} ${emailValue ? styles.hasValue : ''}`}>
+                            <div
+                                ref={emailBoxRef}
+                                className={`${styles.notchBox} ${emailValue ? 'floated' : ''}`}
+                            >
+                                <Input
+                                    className={styles.innerInput}
+                                    autoComplete="email"
+                                    aria-label="Email address"
+                                />
+                            </div>
+                            <span ref={emailLabelRef} className={styles.floatLabel}>Email address</span>
+                        </div>
                     </Form.Item>
 
                     <Form.Item
                         name="password"
-                        label="Password"
                         rules={[{required: true, message: 'Please enter your password'}]}
                     >
-                        <Input.Password autoComplete="current-password" placeholder="••••••••"/>
+                        <div className={`${styles.floatField} ${passwordValue ? styles.hasValue : ''}`}>
+                            <div
+                                ref={pwdBoxRef}
+                                className={`${styles.notchBox} ${passwordValue ? 'floated' : ''}`}
+                            >
+                                <Input.Password
+                                    className={styles.pwdAffix}
+                                    autoComplete="current-password"
+                                    aria-label="Password"
+                                />
+                            </div>
+                            <span ref={pwdLabelRef} className={styles.floatLabel}>Password</span>
+                        </div>
                     </Form.Item>
 
                     <Form.Item className={styles.submitBtn}>
