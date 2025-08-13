@@ -1,0 +1,263 @@
+/* ===== Page layout & card ===== */
+.wrapper {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: radial-gradient(1200px 600px at -10% -10%, rgba(99, 102, 241, 0.12), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(56, 189, 248, 0.12), transparent 60%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+    .wrapper {
+        background: radial-gradient(1200px 600px at -10% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
+        radial-gradient(900px 500px at 110% 10%, rgba(56, 189, 248, 0.18), transparent 60%),
+        linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
+    }
+}
+
+.card {
+    width: 100%;
+    max-width: 720px;
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 10px 35px rgba(15, 23, 42, 0.18);
+    backdrop-filter: saturate(140%) blur(4px);
+}
+
+.card :global(.ant-card-body) {
+    padding: 28px;
+}
+
+/* ===== Header ===== */
+.header {
+    display: grid;
+    place-items: center;
+    row-gap: 8px;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    font-size: 13px;
+    color: #64748b;
+}
+
+@media (prefers-color-scheme: dark) {
+    .subtitle {
+        color: #94a3b8;
+    }
+}
+
+/* ===== Form layout ===== */
+.form {
+    margin-top: 4px;
+}
+
+.form :global(.ant-form-item) {
+    margin-bottom: 16px;
+}
+
+.sectionTitle {
+    margin: 8px 0 6px;
+}
+
+/* Stretch AntD form controls full width */
+.form :global(.ant-form-item-control),
+.form :global(.ant-form-item-control-input),
+.form :global(.ant-form-item-control-input-content) {
+    width: 100%;
+    display: block;
+    box-sizing: border-box;
+}
+
+/* 2-column grid for questions/answers */
+.grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 620px) {
+    .grid2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ===== Notched floating label (shared) ===== */
+.floatField {
+    position: relative;
+    width: 100%;
+}
+
+.hasValue {
+}
+
+/* ensure CSS Modules exports the class */
+
+/* Fixed field height (change once to adjust everywhere) */
+:root {
+    --field-h: 52px;
+}
+
+.notchBox {
+    --gap: 80px; /* default until JS measures label */
+    --stroke: rgba(100, 116, 139, 0.35);
+    --bg: #fff;
+
+    position: relative;
+    width: 100%;
+    height: var(--field-h);
+    box-sizing: border-box;
+    border: 1px solid var(--stroke);
+    border-radius: calc(var(--field-h) / 2);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    background: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+    .notchBox {
+        --stroke: rgba(148, 163, 184, 0.28);
+        --bg: #0f172a;
+    }
+}
+
+.notchBox:focus-within {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
+}
+
+.notchBox.floated::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--gap);
+    height: 2px;
+    background: var(--bg);
+}
+
+/* Inner controls (remove native borders) */
+.innerInput,
+.pwdAffix,
+.select {
+    width: 100% !important;
+    height: 100% !important; /* <- fixed height applied */
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent;
+    border-radius: calc(var(--field-h) / 2) !important;
+    display: block;
+}
+
+/* Plain Input padding */
+.innerInput {
+    padding: 16px 14px 10px 14px;
+}
+
+/* Password wrapper + inner input */
+.pwdAffix {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+}
+
+.pwdAffix :global(.ant-input) {
+    height: 100%;
+    padding: 16px 0 10px 2px;
+    background: transparent;
+}
+
+/* Select trigger (AntD Select root) */
+.select :global(.ant-select-selector) {
+    height: 100% !important; /* <- match fixed height */
+    line-height: calc(var(--field-h) - 2px) !important; /* visual centering */
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 14px !important;
+    display: flex;
+    align-items: center;
+    border-radius: calc(var(--field-h) / 2) !important;
+}
+
+/* Label that embeds into the top border */
+.floatLabel {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1;
+    pointer-events: none;
+    transition: all 0.18s ease;
+    z-index: 2;
+    padding: 0 8px;
+    border-radius: 9999px;
+    background: var(--bg);
+}
+
+@media (prefers-color-scheme: light) {
+    .floatLabel {
+        --bg: #fff;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    .floatLabel {
+        --bg: #0f172a;
+    }
+}
+
+/* Float on focus or when field has value */
+.floatField:focus-within .floatLabel,
+.hasValue .floatLabel {
+    top: 0;
+    transform: translateY(-50%);
+    font-size: 11px;
+    color: #6366f1;
+}
+
+/* Keep label floated while Select is open (extra safety) */
+.notchBox:has(:global(.ant-select-open)) + .floatLabel,
+.notchBox:has(:global(.ant-select-focused)) + .floatLabel {
+    top: 0;
+    transform: translateY(-50%);
+    font-size: 11px;
+    color: #6366f1;
+}
+
+/* Buttons area */
+.actions {
+    display: flex;
+    justify-content: space-between; /* Back left, Register right */
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.submitBtn :global(.ant-btn) {
+    height: 44px;
+    border-radius: 12px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+/* Small fade-in */
+.fadeIn {
+    animation: fadeIn 260ms ease-out both;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.995);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}

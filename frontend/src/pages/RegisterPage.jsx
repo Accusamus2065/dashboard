@@ -1,17 +1,82 @@
 // frontend/src/pages/RegisterPage.jsx
-import React from 'react';
+import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import '@ant-design/v5-patch-for-react-19';
-import {Form, Input, Button, Typography, Space, Select, message} from 'antd';
+import {Form, Input, Button, Typography, Select, Card, message} from 'antd';
 import {useNavigate} from 'react-router-dom';
 import api from '../services/api';
 import {SECURITY_QUESTION_BANK} from '../constants/constant';
+import styles from './RegisterPage.module.css';
 
-const {Title} = Typography;
+const {Title, Text} = Typography;
 const {Option} = Select;
 
 export default function RegisterPage() {
     const [form] = Form.useForm();
     const navigate = useNavigate();
+
+    // Watch values (typing + autofill)
+    const emailVal = Form.useWatch('email', form) || '';
+    const passwordVal = Form.useWatch('password', form) || '';
+    const q1Val = Form.useWatch('q1', form) || '';
+    const q2Val = Form.useWatch('q2', form) || '';
+    const q3Val = Form.useWatch('q3', form) || '';
+    const a1Val = Form.useWatch('a1', form) || '';
+    const a2Val = Form.useWatch('a2', form) || '';
+    const a3Val = Form.useWatch('a3', form) || '';
+
+    // Persist-float flags
+    const [q1Fixed, setQ1Fixed] = useState(false);
+    const [q2Fixed, setQ2Fixed] = useState(false);
+    const [q3Fixed, setQ3Fixed] = useState(false);
+
+    // Also keep label floated while dropdown is open
+    const [q1Open, setQ1Open] = useState(false);
+    const [q2Open, setQ2Open] = useState(false);
+    const [q3Open, setQ3Open] = useState(false);
+
+    useEffect(() => {
+        setQ1Fixed(Boolean(q1Val));
+    }, [q1Val]);
+    useEffect(() => {
+        setQ2Fixed(Boolean(q2Val));
+    }, [q2Val]);
+    useEffect(() => {
+        setQ3Fixed(Boolean(q3Val));
+    }, [q3Val]);
+
+    // Notch measurement
+    const refs = {
+        email: {label: useRef(null), box: useRef(null)},
+        password: {label: useRef(null), box: useRef(null)},
+        q1: {label: useRef(null), box: useRef(null)},
+        a1: {label: useRef(null), box: useRef(null)},
+        q2: {label: useRef(null), box: useRef(null)},
+        a2: {label: useRef(null), box: useRef(null)},
+        q3: {label: useRef(null), box: useRef(null)},
+        a3: {label: useRef(null), box: useRef(null)},
+    };
+
+    const applyGap = () => {
+        const pad = 16;
+        Object.values(refs).forEach(({label, box}) => {
+            if (label.current && box.current) {
+                const w = Math.ceil(label.current.getBoundingClientRect().width) + pad * 2;
+                box.current.style.setProperty('--gap', `${w}px`);
+            }
+        });
+    };
+
+    useLayoutEffect(() => {
+        applyGap();
+    }, []);
+    useEffect(() => {
+        const onResize = () => applyGap();
+        window.addEventListener('resize', onResize);
+        return () => window.removeEventListener('resize', onResize);
+    }, []);
+    useEffect(() => {
+        applyGap();
+    }, [emailVal, passwordVal, q1Val, q2Val, q3Val, a1Val, a2Val, a3Val]);
 
     const onFinish = async (values) => {
         const payload = {
@@ -33,71 +98,177 @@ export default function RegisterPage() {
     };
 
     return (
-        <div style={{padding: 24, maxWidth: 520, margin: '0 auto'}}>
-            <Title level={3}>Register</Title>
-            <Form form={form} layout="vertical" onFinish={onFinish}>
-                <Form.Item name="email" label="Email" rules={[{required: true, type: 'email'}]}>
-                    <Input id="email" name="email" autoComplete="email"/>
-                </Form.Item>
-                <Form.Item name="password" label="Password" rules={[{required: true, min: 6}]}>
-                    <Input.Password id="password" name="password" autoComplete="new-password"/>
-                </Form.Item>
+        <div className={styles.wrapper}>
+            <Card className={`${styles.card} ${styles.fadeIn}`} bordered={false}>
+                <header className={styles.header}>
+                    <Title level={3} style={{margin: 0}}>Create account</Title>
+                    <Text className={styles.subtitle}>Fill in your details to get started</Text>
+                </header>
 
-                <Space direction="vertical" size="small" style={{width: '100%'}}>
-                    <Title level={5} style={{marginTop: 8}}>Security Questions</Title>
-
-                    {/* Q1 */}
-                    <Form.Item label="Question 1" required>
-                        <Input.Group compact>
-                            <Form.Item name="q1" noStyle rules={[{required: true}]}>
-                                <Select style={{width: '100%'}} placeholder="Select your question">
-                                    {SECURITY_QUESTION_BANK.map(q => <Option key={q} value={q}>{q}</Option>)}
-                                </Select>
-                            </Form.Item>
-                        </Input.Group>
-                    </Form.Item>
-                    <Form.Item name="a1" label="Answer 1" rules={[{required: true}]}>
-                        <Input id="a1" name="a1" autoComplete="off"/>
-                    </Form.Item>
-
-                    {/* Q2 */}
-                    <Form.Item label="Question 2" required>
-                        <Input.Group compact>
-                            <Form.Item name="q2" noStyle rules={[{required: true}]}>
-                                <Select style={{width: '100%'}} placeholder="Select your question" showSearch
-                                        allowClear>
-                                    {SECURITY_QUESTION_BANK.map(q => <Option key={q} value={q}>{q}</Option>)}
-                                </Select>
-                            </Form.Item>
-                        </Input.Group>
-                    </Form.Item>
-                    <Form.Item name="a2" label="Answer 2" rules={[{required: true}]}>
-                        <Input id="a2" name="a2" autoComplete="off"/>
+                <Form
+                    form={form}
+                    layout="vertical"
+                    onFinish={onFinish}
+                    className={styles.form}
+                    requiredMark={false}
+                    autoComplete="on"
+                    size="large"
+                >
+                    {/* Email */}
+                    <Form.Item
+                        name="email"
+                        rules={[{required: true, type: 'email', message: 'Please enter a valid email'}]}
+                    >
+                        <div className={`${styles.floatField} ${emailVal ? styles.hasValue : ''}`}>
+                            <div ref={refs.email.box} className={`${styles.notchBox} ${emailVal ? 'floated' : ''}`}>
+                                <Input className={styles.innerInput} autoComplete="email" aria-label="Email address"/>
+                            </div>
+                            <span ref={refs.email.label} className={styles.floatLabel}>Email address</span>
+                        </div>
                     </Form.Item>
 
-                    {/* Q3 */}
-                    <Form.Item label="Question 3" required>
-                        <Input.Group compact>
-                            <Form.Item name="q3" noStyle rules={[{required: true}]}>
-                                <Select style={{width: '100%'}} placeholder="Select your question" showSearch
-                                        allowClear>
-                                    {SECURITY_QUESTION_BANK.map(q => <Option key={q} value={q}>{q}</Option>)}
-                                </Select>
-                            </Form.Item>
-                        </Input.Group>
+                    {/* Password */}
+                    <Form.Item
+                        name="password"
+                        rules={[{required: true, min: 6, message: 'Minimum 6 characters'}]}
+                    >
+                        <div className={`${styles.floatField} ${passwordVal ? styles.hasValue : ''}`}>
+                            <div ref={refs.password.box}
+                                 className={`${styles.notchBox} ${passwordVal ? 'floated' : ''}`}>
+                                <Input.Password
+                                    className={styles.pwdAffix}
+                                    autoComplete="new-password"
+                                    aria-label="Password"
+                                />
+                            </div>
+                            <span ref={refs.password.label} className={styles.floatLabel}>Password</span>
+                        </div>
                     </Form.Item>
-                    <Form.Item name="a3" label="Answer 3" rules={[{required: true}]}>
-                        <Input id="a3" name="a3" autoComplete="off"/>
-                    </Form.Item>
-                </Space>
 
-                <Form.Item style={{marginTop: 12}}>
-                    <Space>
-                        <Button type="primary" htmlType="submit">Register</Button>
+                    {/* Security Questions */}
+                    <Title level={5} className={styles.sectionTitle}>Security Questions</Title>
+
+                    {/* Q1 + A1 */}
+                    <div className={styles.grid2}>
+                        <Form.Item name="q1" rules={[{required: true, message: 'Please choose a question'}]}>
+                            <div
+                                className={`${styles.floatField} ${(q1Val || q1Open || q1Fixed) ? styles.hasValue : ''}`}>
+                                <div ref={refs.q1.box}
+                                     className={`${styles.notchBox} ${(q1Val || q1Open || q1Fixed) ? 'floated' : ''}`}>
+                                    <Select
+                                        className={styles.select}
+                                        placeholder=""
+                                        showSearch
+                                        allowClear
+                                        aria-label="Security question 1"
+                                        onDropdownOpenChange={setQ1Open}
+                                        onChange={(val) => setQ1Fixed(Boolean(val))}
+                                        filterOption={(input, option) =>
+                                            (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+                                        }
+                                    >
+                                        {SECURITY_QUESTION_BANK.map(q => (
+                                            <Option key={`q1-${q}`} value={q}>{q}</Option>
+                                        ))}
+                                    </Select>
+                                </div>
+                                <span ref={refs.q1.label} className={styles.floatLabel}>Question 1</span>
+                            </div>
+                        </Form.Item>
+
+                        <Form.Item name="a1" rules={[{required: true, message: 'Please provide an answer'}]}>
+                            <div className={`${styles.floatField} ${a1Val ? styles.hasValue : ''}`}>
+                                <div ref={refs.a1.box} className={`${styles.notchBox} ${a1Val ? 'floated' : ''}`}>
+                                    <Input className={styles.innerInput} autoComplete="off" aria-label="Answer 1"/>
+                                </div>
+                                <span ref={refs.a1.label} className={styles.floatLabel}>Answer 1</span>
+                            </div>
+                        </Form.Item>
+                    </div>
+
+                    {/* Q2 + A2 */}
+                    <div className={styles.grid2}>
+                        <Form.Item name="q2" rules={[{required: true, message: 'Please choose a question'}]}>
+                            <div
+                                className={`${styles.floatField} ${(q2Val || q2Open || q2Fixed) ? styles.hasValue : ''}`}>
+                                <div ref={refs.q2.box}
+                                     className={`${styles.notchBox} ${(q2Val || q2Open || q2Fixed) ? 'floated' : ''}`}>
+                                    <Select
+                                        className={styles.select}
+                                        placeholder=""
+                                        showSearch
+                                        allowClear
+                                        aria-label="Security question 2"
+                                        onDropdownOpenChange={setQ2Open}
+                                        onChange={(val) => setQ2Fixed(Boolean(val))}
+                                        filterOption={(input, option) =>
+                                            (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+                                        }
+                                    >
+                                        {SECURITY_QUESTION_BANK.map(q => (
+                                            <Option key={`q2-${q}`} value={q}>{q}</Option>
+                                        ))}
+                                    </Select>
+                                </div>
+                                <span ref={refs.q2.label} className={styles.floatLabel}>Question 2</span>
+                            </div>
+                        </Form.Item>
+
+                        <Form.Item name="a2" rules={[{required: true, message: 'Please provide an answer'}]}>
+                            <div className={`${styles.floatField} ${a2Val ? styles.hasValue : ''}`}>
+                                <div ref={refs.a2.box} className={`${styles.notchBox} ${a2Val ? 'floated' : ''}`}>
+                                    <Input className={styles.innerInput} autoComplete="off" aria-label="Answer 2"/>
+                                </div>
+                                <span ref={refs.a2.label} className={styles.floatLabel}>Answer 2</span>
+                            </div>
+                        </Form.Item>
+                    </div>
+
+                    {/* Q3 + A3 */}
+                    <div className={styles.grid2}>
+                        <Form.Item name="q3" rules={[{required: true, message: 'Please choose a question'}]}>
+                            <div
+                                className={`${styles.floatField} ${(q3Val || q3Open || q3Fixed) ? styles.hasValue : ''}`}>
+                                <div
+                                    ref={refs.q3.box}
+                                    className={`${styles.notchBox} ${(q3Val || q3Open || q3Fixed) ? 'floated' : ''}`}>
+                                    <Select
+                                        className={styles.select}
+                                        placeholder=""
+                                        showSearch
+                                        allowClear
+                                        aria-label="Security question 3"
+                                        onDropdownOpenChange={setQ3Open}
+                                        onChange={(val) => setQ3Fixed(Boolean(val))}
+                                        filterOption={(input, option) =>
+                                            (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+                                        }
+                                    >
+                                        {SECURITY_QUESTION_BANK.map(q => (
+                                            <Option key={`q3-${q}`} value={q}>{q}</Option>
+                                        ))}
+                                    </Select>
+                                </div>
+                                <span ref={refs.q3.label} className={styles.floatLabel}>Question 3</span>
+                            </div>
+                        </Form.Item>
+
+                        <Form.Item name="a3" rules={[{required: true, message: 'Please provide an answer'}]}>
+                            <div className={`${styles.floatField} ${a3Val ? styles.hasValue : ''}`}>
+                                <div ref={refs.a3.box} className={`${styles.notchBox} ${a3Val ? 'floated' : ''}`}>
+                                    <Input className={styles.innerInput} autoComplete="off" aria-label="Answer 3"/>
+                                </div>
+                                <span ref={refs.a3.label} className={styles.floatLabel}>Answer 3</span>
+                            </div>
+                        </Form.Item>
+                    </div>
+
+                    <div className={`${styles.actions} ${styles.submitBtn}`}>
                         <Button onClick={() => navigate('/login')}>Back to Login</Button>
-                    </Space>
-                </Form.Item>
-            </Form>
+                        <Button type="primary" htmlType="submit">Register</Button>
+                    </div>
+                </Form>
+            </Card>
         </div>
     );
 }
