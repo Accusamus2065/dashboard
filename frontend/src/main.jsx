@@ -3,7 +3,7 @@ import React, {useEffect, useState} from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import {AuthProvider} from './contexts/AuthContext';
-import {ConfigProvider, theme} from 'antd';
+import {App as AntdApp, ConfigProvider, theme} from 'antd';
 import 'antd/dist/reset.css';
 
 function Root() {
@@ -41,9 +41,11 @@ function Root() {
                 },
             }}
         >
-            <AuthProvider>
-                <App/>
-            </AuthProvider>
+            <AntdApp>
+                <AuthProvider>
+                    <App/>
+                </AuthProvider>
+            </AntdApp>
         </ConfigProvider>
     );
 }

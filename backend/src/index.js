@@ -7,6 +7,7 @@ const fs = require('fs');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const {Op, literal, fn, where} = require('sequelize');
 
 const {Model, SCHEMA_MODES, RISK_LEVELS, LICENSES} = require('./models/model');
 const {User, USER_ROLES} = require('./models/user');
@@ -74,12 +75,13 @@ ComplianceDoc.belongsTo(User, {as: 'uploader', foreignKey: 'uploaded_by'});
 ComplianceDoc.belongsTo(User, {as: 'reviewer', foreignKey: 'reviewer_id'});
 SecurityQA.belongsTo(User, {foreignKey: 'user_id'});
 
+Model.hasMany(ComplianceDoc, {foreignKey: 'model_id', as: 'docs'});
+
 // ---- DB sync & seed admin ----
 sequelize.sync({alter: true})
     .then(async () => {
         console.log('Database synced with alter');
 
-        // Seed admin if env provided and not exists
         const {ADMIN_EMAIL, ADMIN_PASSWORD} = process.env;
         if (ADMIN_EMAIL && ADMIN_PASSWORD) {
             const existing = await User.findOne({where: {email: ADMIN_EMAIL}});
@@ -114,15 +116,13 @@ function sanitizeModelForRole(modelRec, role) {
     const obj = modelRec.toJSON ? modelRec.toJSON() : {...modelRec};
     const r = role || 'viewer';
 
-    if (r === 'admin' || r === 'uploader') {
-        return obj; // full access
-    }
+    if (r === 'admin' || r === 'uploader') return obj;
     if (r === 'auditor') {
         delete obj.training_data_uris;
         delete obj.validation_data_uris;
         return obj;
     }
-    // viewer or unknown -> strictest
+    // viewer
     delete obj.owner_contact;
     delete obj.training_data_uris;
     delete obj.validation_data_uris;
@@ -147,7 +147,6 @@ app.post('/auth/register', async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const user = await User.create({email, password_hash: hash, role: 'viewer'});
 
-    // save security QAs (2~5 items)
     if (Array.isArray(security_questions) && security_questions.length >= 2 && security_questions.length <= 5) {
         for (const qa of security_questions) {
             if (!qa?.question || !qa?.answer) continue;
@@ -161,46 +160,39 @@ app.post('/auth/register', async (req, res) => {
 
 app.get('/auth/security-questions', async (req, res) => {
     const email = String(req.query.email || '').trim();
-    if (!email) return res.status(400).json({ error: 'Email is required' });
+    if (!email) return res.status(400).json({error: 'Email is required'});
 
-    const user = await User.findOne({ where: { email }, attributes: ['id', 'role'] });
-    if (!user) {
-        return res.status(409).json({ error: 'This account does not support password recovery.' });
-    }
+    const user = await User.findOne({where: {email}, attributes: ['id', 'role']});
+    if (!user) return res.status(409).json({error: 'This account does not support password recovery.'});
 
-    const qas = await SecurityQA.findAll({ where: { user_id: user.id }, order: [['id', 'ASC']] });
-    if (!qas.length) {
-        return res.status(409).json({ error: 'This account does not support password recovery.' });
-    }
+    const qas = await SecurityQA.findAll({where: {user_id: user.id}, order: [['id', 'ASC']]});
+    if (!qas.length) return res.status(409).json({error: 'This account does not support password recovery.'});
 
-    res.json({
-        email,
-        questions: qas.map(q => ({ question: q.question }))
-    });
+    res.json({email, questions: qas.map(q => ({question: q.question}))});
 });
 
 app.post('/auth/reset-with-qa', async (req, res) => {
-    const { email, answers, new_password } = req.body || {};
+    const {email, answers, new_password} = req.body || {};
     if (!email || !Array.isArray(answers) || !new_password) {
-        return res.status(400).json({ error: 'email, answers and new_password are required' });
+        return res.status(400).json({error: 'email, answers and new_password are required'});
     }
 
-    const user = await User.findOne({ where: { email } });
-    if (!user) return res.status(409).json({ error: 'This account does not support password recovery.' });
+    const user = await User.findOne({where: {email}});
+    if (!user) return res.status(409).json({error: 'This account does not support password recovery.'});
 
-    const qas = await SecurityQA.findAll({ where: { user_id: user.id } });
-    if (!qas.length) return res.status(409).json({ error: 'This account does not support password recovery.' });
+    const qas = await SecurityQA.findAll({where: {user_id: user.id}});
+    if (!qas.length) return res.status(409).json({error: 'This account does not support password recovery.'});
 
     for (const qa of qas) {
         const provided = answers.find(a => String(a.question).trim() === qa.question);
-        if (!provided) return res.status(400).json({ error: 'Missing answer for a question.' });
+        if (!provided) return res.status(400).json({error: 'Missing answer for a question.'});
         const ok = await bcrypt.compare(String(provided.answer).trim(), qa.answer_hash);
-        if (!ok) return res.status(401).json({ error: 'Answer verification failed.' });
+        if (!ok) return res.status(401).json({error: 'Answer verification failed.'});
     }
 
     const hash = await bcrypt.hash(new_password, 10);
-    await user.update({ password_hash: hash });
-    res.json({ ok: true });
+    await user.update({password_hash: hash});
+    res.json({ok: true});
 });
 
 app.post('/auth/login', async (req, res) => {
@@ -235,7 +227,119 @@ app.put('/admin/users/:id/role', authRequired, requireRole('admin'), async (req,
 });
 
 // ---- MODEL ROUTES (protected) ----
-// Everyone logged-in can list & view (with field-level sanitize)
+app.get('/models/search', authRequired, async (req, res, next) => {
+    try {
+        const {
+            q, risk, schema, license, tags, tagsMode,
+            hasDocs, hasTrain, hasVal,
+            minAcc, minF1, minAUC, maxLatency,
+            dateFrom, dateTo,
+            sort = 'updated_at_desc',
+            page = 1, pageSize = 24
+        } = req.query;
+
+        const where = [];
+        const {Op, literal, fn, where: whereFn} = require('sequelize');
+        const sequelize = require('./config/sequelize');
+
+        // 关键词
+        if (q && String(q).trim()) {
+            const terms = String(q).trim().split(/\s+/);
+            for (const t of terms) {
+                const like = `%${t}%`;
+                where.push({
+                    [Op.or]: [
+                        {name: {[Op.iLike]: like}},
+                        {description: {[Op.iLike]: like}},
+                        {owner_contact: {[Op.iLike]: like}},
+                        whereFn(
+                            fn('EXISTS',
+                                literal(`SELECT 1
+                                         FROM unnest("business_tags") AS tag
+                                         WHERE tag ILIKE ${sequelize.escape(like)}`)
+                            ),
+                            true
+                        )
+                    ]
+                });
+            }
+        }
+
+        if (risk) where.push({risk_level: {[Op.in]: String(risk).split(',')}});
+        if (schema) where.push({input_schema: {[Op.in]: String(schema).split(',')}});
+        if (license) where.push({license: {[Op.in]: String(license).split(',')}});
+
+        if (tags) {
+            const arr = String(tags).split(',').map(s => s.trim()).filter(Boolean);
+            if (arr.length) {
+                if (tagsMode === 'all') where.push({business_tags: {[Op.contains]: arr}});
+                else where.push({business_tags: {[Op.overlap]: arr}});
+            }
+        }
+
+        if (hasTrain === 'true') where.push(literal(`training_data_uris IS NOT NULL AND array_length(training_data_uris, 1) > 0`));
+        if (hasVal === 'true') where.push(literal(`validation_data_uris IS NOT NULL AND array_length(validation_data_uris, 1) > 0`));
+
+        if (minAcc !== undefined) where.push({baseline_accuracy: {[Op.gte]: Number(minAcc)}});
+        if (minF1 !== undefined) where.push({baseline_f1: {[Op.gte]: Number(minF1)}});
+        if (minAUC !== undefined) where.push({baseline_auc: {[Op.gte]: Number(minAUC)}});
+        if (maxLatency !== undefined) where.push({baseline_latency_ms: {[Op.lte]: Number(maxLatency)}});
+
+        if (dateFrom || dateTo) {
+            where.push({
+                updated_at: {
+                    ...(dateFrom ? {[Op.gte]: new Date(dateFrom)} : {}),
+                    ...(dateTo ? {[Op.lte]: new Date(dateTo)} : {}),
+                }
+            });
+        }
+
+        const sortMap = {
+            'updated_at_desc': ['updated_at', 'DESC'],
+            'updated_at_asc': ['updated_at', 'ASC'],
+            'name_asc': ['name', 'ASC'],
+            'acc_desc': ['baseline_accuracy', 'DESC'],
+            'f1_desc': ['baseline_f1', 'DESC'],
+            'auc_desc': ['baseline_auc', 'DESC'],
+            'latency_asc': ['baseline_latency_ms', 'ASC'],
+        };
+        const order = [sortMap[sort] || sortMap['updated_at_desc']];
+
+        const limit = Math.min(Number(pageSize) || 24, 100);
+        const offset = (Math.max(Number(page) || 1, 1) - 1) * limit;
+
+        const include = [];
+        if (hasDocs === 'true') {
+            include.push({
+                model: ComplianceDoc,
+                as: 'docs',
+                required: true,   // 至少有一条 doc
+                attributes: []
+            });
+        }
+
+        const {rows, count} = await Model.findAndCountAll({
+            where: where.length ? {[Op.and]: where} : undefined,
+            include: include.length ? include : undefined,
+            distinct: true,                     // ← 只保留 distinct
+            order: [order],
+            limit,
+            offset,
+            attributes: [
+                'id', 'name', 'version', 'risk_level', 'input_schema',
+                'baseline_accuracy', 'baseline_f1', 'baseline_auc', 'baseline_latency_ms',
+                'license', 'business_tags', 'updated_at'
+            ]
+        });
+
+        const items = rows.map(r => sanitizeModelForRole(r, req.user.role));
+        res.json({items, total: count, page: Number(page) || 1, pageSize: limit});
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Everyone logged-in can list (table view still可用)
 app.get('/models', authRequired, async (req, res, next) => {
     try {
         const list = await Model.findAll({order: [['id', 'ASC']]});
@@ -385,8 +489,6 @@ app.delete('/models/:id', authRequired, requireRole('admin'), async (req, res, n
 });
 
 // ---- COMPLIANCE DOC ROUTES ----
-
-// List docs of a model
 app.get('/models/:id/compliance-docs', authRequired, async (req, res, next) => {
     try {
         const modelId = Number(req.params.id);
@@ -404,7 +506,6 @@ app.get('/models/:id/compliance-docs', authRequired, async (req, res, next) => {
     }
 });
 
-// Upload a compliance doc
 app.post(
     '/models/:id/compliance-docs',
     authRequired, requireRole(['uploader', 'admin']),
@@ -429,7 +530,6 @@ app.post(
     }
 );
 
-// Review (approve/reject)
 app.put(
     '/compliance-docs/:docId/review',
     authRequired, requireRole(['auditor', 'admin']),
@@ -454,7 +554,6 @@ app.put(
     }
 );
 
-// Delete doc (admin or uploader self)
 app.delete('/compliance-docs/:docId', authRequired, async (req, res, next) => {
     try {
         const doc = await ComplianceDoc.findByPk(req.params.docId);
@@ -508,7 +607,6 @@ app.get('/compliance/status', authRequired, async (_req, res, next) => {
     }
 });
 
-// Requirements helper (optional)
 app.get('/compliance/requirements', authRequired, (_req, res) => {
     res.json({REQUIRED_DOCS, COMPLIANCE_TYPES, REVIEW_STATUSES});
 });
