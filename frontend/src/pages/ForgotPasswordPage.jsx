@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
     const [emailVal, setEmailVal] = useState('');
     const [questions, setQuestions] = useState([]);
 
-    // floating label state for stage 2 fields
+    // watch fields on stage 2 (for floating label only)
     const aVals = {
         a0: Form.useWatch('ans_0', resetForm) || '',
         a1: Form.useWatch('ans_1', resetForm) || '',
@@ -26,7 +26,7 @@ export default function ForgotPasswordPage() {
         newPwd: Form.useWatch('new_password', resetForm) || '',
     };
 
-    // Refs for notch width measurement (email + answers + new pwd)
+    // notch measurement refs
     const refs = {
         email: {label: useRef(null), box: useRef(null)},
         ans_0: {label: useRef(null), box: useRef(null)},
@@ -45,17 +45,13 @@ export default function ForgotPasswordPage() {
         });
     };
 
-    useLayoutEffect(() => {
-        applyGap();
-    }, []);
+    useLayoutEffect(() => { applyGap(); }, []);
     useEffect(() => {
         const onResize = () => applyGap();
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
-    useEffect(() => {
-        applyGap();
-    }, [emailVal, aVals.a0, aVals.a1, aVals.a2, aVals.newPwd, questions.length]);
+    useEffect(() => { applyGap(); }, [emailVal, aVals.a0, aVals.a1, aVals.a2, aVals.newPwd, questions.length]);
 
     const fetchQuestions = async (email) => {
         if (!email) return message.error('Please enter email');
@@ -71,6 +67,16 @@ export default function ForgotPasswordPage() {
         } finally {
             setLoading(false);
         }
+    };
+
+    // Use non-blocking toasts instead of inline errors or modals
+    const showErrors = (errorFields) => {
+        const items = errorFields.flatMap(f => f.errors || []);
+        const errorText = items.length ? items.join('\n') : 'Some inputs are invalid.';
+        message.error({
+            content: <div style={{whiteSpace: 'pre-line'}}>{errorText}</div>,
+            duration: 4, // seconds until auto-dismiss
+        });
     };
 
     const onEmailFinish = ({email}) => {
@@ -108,27 +114,27 @@ export default function ForgotPasswordPage() {
 
                 {/* Panels cross-fade */}
                 <div className={styles.panelContainer}>
-                    {/* Stage 1: Email (form so Enter triggers Get Questions) */}
-                    <div className={`${styles.panel} ${stage === 1 ? styles.panelActive : ''}`}
-                         aria-hidden={stage !== 1}>
+                    {/* Stage 1: Email */}
+                    <div className={`${styles.panel} ${stage === 1 ? styles.panelActive : ''}`} aria-hidden={stage !== 1}>
                         <Form
                             form={emailForm}
                             layout="vertical"
                             requiredMark={false}
+                            className={`${styles.form} ${styles.formNoExplain}`}
+                            validateTrigger="onSubmit"
                             onFinish={onEmailFinish}
+                            onFinishFailed={({errorFields}) => showErrors(errorFields)}
                         >
-                            <Space direction="vertical" size="middle" style={{width: '100%'}}>
-                                <Alert
-                                    type="info"
-                                    showIcon
-                                    message="Enter your email to load your security questions."
-                                />
+                            <Space direction="vertical" size="small" style={{width: '100%'}}>
+                                <Alert type="info" showIcon message="Enter your email to load your security questions." />
 
-                                <Form.Item name="email"
-                                           rules={[{required: true, type: 'email', message: 'Enter a valid email'}]}>
+                                <Form.Item
+                                    name="email"
+                                    rules={[{required: true, type: 'email', message: 'Enter a valid email'}]}
+                                >
                                     <div className={`${styles.floatField} ${emailVal ? styles.hasValue : ''}`}>
-                                        <div ref={refs.email.box}
-                                             className={`${styles.notchBox} ${emailVal ? 'floated' : ''}`}>
+                                        <div ref={refs.email.box} className={`${styles.notchBox} ${emailVal ? 'floated' : ''}`}
+                                        style={{marginTop: 5, marginBottom: -8}}>
                                             <Input
                                                 className={styles.innerInput}
                                                 autoComplete="email"
@@ -151,20 +157,21 @@ export default function ForgotPasswordPage() {
                     </div>
 
                     {/* Stage 2: Questions + New Password */}
-                    <div className={`${styles.panel} ${stage === 2 ? styles.panelActive : ''}`}
-                         aria-hidden={stage !== 2}>
+                    <div className={`${styles.panel} ${stage === 2 ? styles.panelActive : ''}`} aria-hidden={stage !== 2}>
                         <Form
                             layout="vertical"
                             form={resetForm}
                             onFinish={onReset}
                             requiredMark={false}
-                            className={styles.form}
+                            className={`${styles.form} ${styles.formNoExplain}`}
+                            validateTrigger="onSubmit"
+                            onFinishFailed={({errorFields}) => showErrors(errorFields)}
                         >
                             <Alert
                                 type="success"
                                 showIcon
                                 message={`Loaded ${questions.length} question(s) for ${emailVal}`}
-                                style={{marginBottom: 12}}
+                                style={{marginBottom: 10}}
                             />
 
                             {questions.map((q, i) => (
@@ -174,14 +181,15 @@ export default function ForgotPasswordPage() {
                                     rules={[{required: true, message: 'Please answer this question'}]}
                                 >
                                     <div
-                                        className={`${styles.floatField} ${(resetForm.getFieldValue(`ans_${i}`) || '').length ? styles.hasValue : ''}`}>
-                                        <div ref={refs[`ans_${i}`]?.box}
-                                             className={`${styles.notchBox} ${(resetForm.getFieldValue(`ans_${i}`) || '').length ? 'floated' : ''}`}>
-                                            <Input autoComplete="off" className={styles.innerInput}
-                                                   aria-label={`Answer ${i + 1}`}/>
+                                        className={`${styles.floatField} ${(resetForm.getFieldValue(`ans_${i}`) || '').length ? styles.hasValue : ''}`}
+                                    >
+                                        <div
+                                            ref={refs[`ans_${i}`]?.box}
+                                            className={`${styles.notchBox} ${(resetForm.getFieldValue(`ans_${i}`) || '').length ? 'floated' : ''}`}
+                                        >
+                                            <Input autoComplete="off" className={styles.innerInput} aria-label={`Answer ${i + 1}`} />
                                         </div>
-                                        <span ref={refs[`ans_${i}`]?.label}
-                                              className={styles.floatLabel}>{q.question}</span>
+                                        <span ref={refs[`ans_${i}`]?.label} className={styles.floatLabel}>{q.question}</span>
                                     </div>
                                 </Form.Item>
                             ))}
@@ -191,16 +199,10 @@ export default function ForgotPasswordPage() {
                                 rules={[{required: true, min: 6, message: 'Minimum 6 characters'}]}
                             >
                                 <div className={`${styles.floatField} ${aVals.newPwd ? styles.hasValue : ''}`}>
-                                    <div ref={refs.new_password.box}
-                                         className={`${styles.notchBox} ${aVals.newPwd ? 'floated' : ''}`}>
-                                        <Input.Password
-                                            autoComplete="new-password"
-                                            className={styles.pwdAffix}
-                                            aria-label="New password"
-                                        />
+                                    <div ref={refs.new_password.box} className={`${styles.notchBox} ${aVals.newPwd ? 'floated' : ''}`}>
+                                        <Input.Password autoComplete="new-password" className={styles.pwdAffix} aria-label="New password" />
                                     </div>
-                                    <span ref={refs.new_password.label}
-                                          className={styles.floatLabel}>New password</span>
+                                    <span ref={refs.new_password.label} className={styles.floatLabel}>New password</span>
                                 </div>
                             </Form.Item>
 
@@ -210,7 +212,6 @@ export default function ForgotPasswordPage() {
                                         setStage(1);
                                         setQuestions([]);
                                         resetForm.resetFields();
-                                        // Keep the typed email in stage 1 form input
                                         emailForm.setFieldsValue({email: emailVal});
                                     }}
                                 >
