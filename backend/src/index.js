@@ -216,6 +216,36 @@ app.get('/admin/users', authRequired, requireRole('admin'), async (_req, res) =>
     res.json(users);
 });
 
+// Delete user (admin only) — prevent deleting self or the last admin
+app.delete('/admin/users/:id', authRequired, requireRole('admin'), async (req, res, next) => {
+    try {
+        const targetId = Number(req.params.id);
+        if (!Number.isInteger(targetId)) return res.status(400).json({error: 'Invalid user id'});
+
+        if (targetId === req.user.uid) {
+            return res.status(400).json({error: 'You cannot delete yourself'});
+        }
+
+        const user = await User.findByPk(targetId);
+        if (!user) return res.status(404).json({error: 'User not found'});
+
+        if (user.role === 'admin') {
+            const adminCount = await User.count({where: {role: 'admin'}});
+            if (adminCount <= 1) {
+                return res.status(400).json({error: 'Cannot delete the last admin'});
+            }
+        }
+
+        await SecurityQA.destroy({where: {user_id: targetId}});
+
+        await user.destroy();
+        res.sendStatus(204);
+    } catch (err) {
+        next(err);
+    }
+});
+
+
 app.put('/admin/users/:id/role', authRequired, requireRole('admin'), async (req, res) => {
     const {role} = req.body || {};
     if (!USER_ROLES.includes(role)) return res.status(400).json({error: 'Invalid role'});
