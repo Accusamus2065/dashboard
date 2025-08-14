@@ -45,13 +45,17 @@ export default function ForgotPasswordPage() {
         });
     };
 
-    useLayoutEffect(() => { applyGap(); }, []);
+    useLayoutEffect(() => {
+        applyGap();
+    }, []);
     useEffect(() => {
         const onResize = () => applyGap();
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
-    useEffect(() => { applyGap(); }, [emailVal, aVals.a0, aVals.a1, aVals.a2, aVals.newPwd, questions.length]);
+    useEffect(() => {
+        applyGap();
+    }, [emailVal, aVals.a0, aVals.a1, aVals.a2, aVals.newPwd, questions.length]);
 
     const fetchQuestions = async (email) => {
         if (!email) return message.error('Please enter email');
@@ -69,13 +73,86 @@ export default function ForgotPasswordPage() {
         }
     };
 
-    // Use non-blocking toasts instead of inline errors or modals
-    const showErrors = (errorFields) => {
-        const items = errorFields.flatMap(f => f.errors || []);
-        const errorText = items.length ? items.join('\n') : 'Some inputs are invalid.';
+    // Normalize Form.Item name to a string
+    const asName = (n) => Array.isArray(n) ? n.join('.') : String(n ?? '');
+
+    // Show separate toasts for (a) questions and (b) password, when both fail.
+    const showErrors = (errorInfoOrFields) => {
+        const errorFields = Array.isArray(errorInfoOrFields)
+            ? errorInfoOrFields
+            : (errorInfoOrFields?.errorFields || []);
+
+        // Group errors by field name
+        const byName = new Map();
+        for (const f of errorFields) {
+            const key = asName(f.name);
+            const errs = f.errors || [];
+            if (!byName.has(key)) byName.set(key, []);
+            byName.set(key, byName.get(key).concat(errs));
+        }
+
+        const isAnsField = (n) => /^ans_\d+$/.test(n);
+        const names = [...byName.keys()];
+        const ansNames = names.filter(isAnsField);
+        const pwdErrs = [...new Set(byName.get('new_password') || [])]; // dedupe
+        const otherErrs = names
+            .filter(n => !isAnsField(n) && n !== 'new_password')
+            .flatMap(n => byName.get(n) || []);
+        const otherErrsDedupe = [...new Set(otherErrs)];
+
+        const hasAns = ansNames.length > 0;
+        const hasPwd = pwdErrs.length > 0;
+
+        // If both categories fail, show two separate message popups
+        if (hasAns && hasPwd) {
+            message.error({content: 'One or more security questions are missing or invalid.', duration: 4});
+            message.error({
+                content: pwdErrs.length ? pwdErrs.join('\n') : 'Password is invalid.',
+                duration: 4,
+            });
+            // If there are any other field errors (rare here), show them too as a third toast
+            if (otherErrsDedupe.length) {
+                message.error({
+                    content: <div style={{whiteSpace: 'pre-line'}}>{otherErrsDedupe.join('\n')}</div>,
+                    duration: 4,
+                });
+            }
+            return;
+        }
+
+        // Only questions invalid
+        if (hasAns) {
+            message.error({content: 'One or more security questions are missing or invalid.', duration: 4});
+            if (otherErrsDedupe.length) {
+                message.error({
+                    content: <div style={{whiteSpace: 'pre-line'}}>{otherErrsDedupe.join('\n')}</div>,
+                    duration: 4,
+                });
+            }
+            return;
+        }
+
+        // Only password invalid
+        if (hasPwd) {
+            message.error({
+                content: pwdErrs.length ? pwdErrs.join('\n') : 'Password is invalid.',
+                duration: 4,
+            });
+            if (otherErrsDedupe.length) {
+                message.error({
+                    content: <div style={{whiteSpace: 'pre-line'}}>{otherErrsDedupe.join('\n')}</div>,
+                    duration: 4,
+                });
+            }
+            return;
+        }
+
+        // Fallback: dedup and show what’s left (e.g., unexpected fields)
+        const allMsgs = [...new Set(errorFields.flatMap(f => f.errors || []))];
         message.error({
-            content: <div style={{whiteSpace: 'pre-line'}}>{errorText}</div>,
-            duration: 4, // seconds until auto-dismiss
+            content: <div
+                style={{whiteSpace: 'pre-line'}}>{allMsgs.length ? allMsgs.join('\n') : 'Some inputs are invalid.'}</div>,
+            duration: 4,
         });
     };
 
@@ -115,7 +192,8 @@ export default function ForgotPasswordPage() {
                 {/* Panels cross-fade */}
                 <div className={styles.panelContainer}>
                     {/* Stage 1: Email */}
-                    <div className={`${styles.panel} ${stage === 1 ? styles.panelActive : ''}`} aria-hidden={stage !== 1}>
+                    <div className={`${styles.panel} ${stage === 1 ? styles.panelActive : ''}`}
+                         aria-hidden={stage !== 1}>
                         <Form
                             form={emailForm}
                             layout="vertical"
@@ -126,15 +204,16 @@ export default function ForgotPasswordPage() {
                             onFinishFailed={({errorFields}) => showErrors(errorFields)}
                         >
                             <Space direction="vertical" size="small" style={{width: '100%'}}>
-                                <Alert type="info" showIcon message="Enter your email to load your security questions." />
-
+                                <Alert type="info" showIcon
+                                       message="Enter your email to load your security questions."/>
                                 <Form.Item
                                     name="email"
                                     rules={[{required: true, type: 'email', message: 'Enter a valid email'}]}
                                 >
                                     <div className={`${styles.floatField} ${emailVal ? styles.hasValue : ''}`}>
-                                        <div ref={refs.email.box} className={`${styles.notchBox} ${emailVal ? 'floated' : ''}`}
-                                        style={{marginTop: 5, marginBottom: -8}}>
+                                        <div ref={refs.email.box}
+                                             className={`${styles.notchBox} ${emailVal ? 'floated' : ''}`}
+                                             style={{marginTop: 5, marginBottom: -8}}>
                                             <Input
                                                 className={styles.innerInput}
                                                 autoComplete="email"
@@ -157,7 +236,8 @@ export default function ForgotPasswordPage() {
                     </div>
 
                     {/* Stage 2: Questions + New Password */}
-                    <div className={`${styles.panel} ${stage === 2 ? styles.panelActive : ''}`} aria-hidden={stage !== 2}>
+                    <div className={`${styles.panel} ${stage === 2 ? styles.panelActive : ''}`}
+                         aria-hidden={stage !== 2}>
                         <Form
                             layout="vertical"
                             form={resetForm}
@@ -165,7 +245,7 @@ export default function ForgotPasswordPage() {
                             requiredMark={false}
                             className={`${styles.form} ${styles.formNoExplain}`}
                             validateTrigger="onSubmit"
-                            onFinishFailed={({errorFields}) => showErrors(errorFields)}
+                            onFinishFailed={showErrors}
                         >
                             <Alert
                                 type="success"
@@ -178,7 +258,7 @@ export default function ForgotPasswordPage() {
                                 <Form.Item
                                     key={i}
                                     name={`ans_${i}`}
-                                    rules={[{required: true, message: 'Please answer this question'}]}
+                                    rules={[{required: true, message: 'Question must be answered'}]}
                                 >
                                     <div
                                         className={`${styles.floatField} ${(resetForm.getFieldValue(`ans_${i}`) || '').length ? styles.hasValue : ''}`}
@@ -187,22 +267,27 @@ export default function ForgotPasswordPage() {
                                             ref={refs[`ans_${i}`]?.box}
                                             className={`${styles.notchBox} ${(resetForm.getFieldValue(`ans_${i}`) || '').length ? 'floated' : ''}`}
                                         >
-                                            <Input autoComplete="off" className={styles.innerInput} aria-label={`Answer ${i + 1}`} />
+                                            <Input autoComplete="off" className={styles.innerInput}
+                                                   aria-label={`Answer ${i + 1}`}/>
                                         </div>
-                                        <span ref={refs[`ans_${i}`]?.label} className={styles.floatLabel}>{q.question}</span>
+                                        <span ref={refs[`ans_${i}`]?.label}
+                                              className={styles.floatLabel}>{q.question}</span>
                                     </div>
                                 </Form.Item>
                             ))}
 
                             <Form.Item
                                 name="new_password"
-                                rules={[{required: true, min: 6, message: 'Minimum 6 characters'}]}
+                                rules={[{required: true, min: 6, message: 'Password must be at least 6 characters'}]}
                             >
                                 <div className={`${styles.floatField} ${aVals.newPwd ? styles.hasValue : ''}`}>
-                                    <div ref={refs.new_password.box} className={`${styles.notchBox} ${aVals.newPwd ? 'floated' : ''}`}>
-                                        <Input.Password autoComplete="new-password" className={styles.pwdAffix} aria-label="New password" />
+                                    <div ref={refs.new_password.box}
+                                         className={`${styles.notchBox} ${aVals.newPwd ? 'floated' : ''}`}>
+                                        <Input.Password autoComplete="new-password" className={styles.pwdAffix}
+                                                        aria-label="New password"/>
                                     </div>
-                                    <span ref={refs.new_password.label} className={styles.floatLabel}>New password</span>
+                                    <span ref={refs.new_password.label}
+                                          className={styles.floatLabel}>New password</span>
                                 </div>
                             </Form.Item>
 
