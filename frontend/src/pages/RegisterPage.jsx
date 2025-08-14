@@ -24,12 +24,12 @@ export default function RegisterPage() {
     const a2Val = Form.useWatch('a2', form) || '';
     const a3Val = Form.useWatch('a3', form) || '';
 
-    // Persist-float flags
+    // Persist-float flags for Selects
     const [q1Fixed, setQ1Fixed] = useState(false);
     const [q2Fixed, setQ2Fixed] = useState(false);
     const [q3Fixed, setQ3Fixed] = useState(false);
 
-    // Also keep label floated while dropdown is open
+    // Keep label floated while dropdown is open
     const [q1Open, setQ1Open] = useState(false);
     const [q2Open, setQ2Open] = useState(false);
     const [q3Open, setQ3Open] = useState(false);
@@ -43,6 +43,20 @@ export default function RegisterPage() {
     useEffect(() => {
         setQ3Fixed(Boolean(q3Val));
     }, [q3Val]);
+
+    // Track which questions are selected to hide them from other dropdowns
+    const [selectedQuestions, setSelectedQuestions] = useState({q1: '', q2: '', q3: ''});
+    useEffect(() => {
+        setSelectedQuestions({q1: q1Val, q2: q2Val, q3: q3Val});
+    }, [q1Val, q2Val, q3Val]);
+
+    const availableQuestions = (currentField) => {
+        const used = Object.entries(selectedQuestions)
+            .filter(([k]) => k !== currentField)
+            .map(([, v]) => v)
+            .filter(Boolean);
+        return SECURITY_QUESTION_BANK.filter(q => !used.includes(q));
+    };
 
     // Notch measurement
     const refs = {
@@ -97,27 +111,64 @@ export default function RegisterPage() {
         }
     };
 
+    // Submit-only validation; combine Q/A errors to one toast, others separate
+    const onFinishFailed = ({errorFields}) => {
+        const byName = new Map();
+        for (const f of errorFields) {
+            const key = Array.isArray(f.name) ? f.name.join('.') : String(f.name ?? '');
+            const errs = f.errors || [];
+            if (!byName.has(key)) byName.set(key, []);
+            byName.set(key, [...byName.get(key), ...errs]);
+        }
+
+        const qaFields = ['q1', 'a1', 'q2', 'a2', 'q3', 'a3'];
+        const qaFailed = qaFields.some(name => byName.has(name));
+        const otherKeys = [...byName.keys()].filter(name => !qaFields.includes(name));
+
+        if (qaFailed) {
+            message.error({content: 'Please select and answer questions accordingly', duration: 4});
+        }
+        // Show one toast per remaining field (email/password, etc.)
+        const order = ['email', 'password', ...otherKeys];
+        const seen = new Set();
+        for (const name of order) {
+            if (seen.has(name) || !byName.has(name)) continue;
+            seen.add(name);
+            const msgs = [...new Set(byName.get(name) || [])];
+            if (msgs.length) {
+                message.error({
+                    content: <div style={{whiteSpace: 'pre-line'}}>{msgs.join('\n')}</div>,
+                    duration: 4,
+                });
+            }
+        }
+    };
+
     return (
         <div className={styles.wrapper}>
-            <Card className={`${styles.card} ${styles.fadeIn}`} bordered={false}>
+            <Card className={`${styles.card} ${styles.fadeIn}`} variant={"borderless"}>
                 <header className={styles.header}>
                     <Title level={3} style={{margin: 0}}>Create account</Title>
-                    <Text className={styles.subtitle}>Fill in your details to get started</Text>
+                    <Text className={styles.subtitle}>Fill in your details to get started.</Text>
                 </header>
 
                 <Form
                     form={form}
                     layout="vertical"
                     onFinish={onFinish}
-                    className={styles.form}
+                    onFinishFailed={onFinishFailed}
+                    className={`${styles.form} ${styles.formNoExplain}`}
                     requiredMark={false}
                     autoComplete="on"
                     size="large"
+                    validateTrigger="onSubmit"   // only validate on submit
+                    noValidate                    // disable browser native validation
                 >
                     {/* Email */}
                     <Form.Item
                         name="email"
                         rules={[{required: true, type: 'email', message: 'Please enter a valid email'}]}
+                        validateTrigger="onSubmit"
                     >
                         <div className={`${styles.floatField} ${emailVal ? styles.hasValue : ''}`}>
                             <div ref={refs.email.box} className={`${styles.notchBox} ${emailVal ? 'floated' : ''}`}>
@@ -130,7 +181,8 @@ export default function RegisterPage() {
                     {/* Password */}
                     <Form.Item
                         name="password"
-                        rules={[{required: true, min: 6, message: 'Minimum 6 characters'}]}
+                        rules={[{required: true, min: 6, message: 'Password must be at least 6 characters'}]}
+                        validateTrigger="onSubmit"
                     >
                         <div className={`${styles.floatField} ${passwordVal ? styles.hasValue : ''}`}>
                             <div ref={refs.password.box}
@@ -150,7 +202,8 @@ export default function RegisterPage() {
 
                     {/* Q1 + A1 */}
                     <div className={styles.grid2}>
-                        <Form.Item name="q1" rules={[{required: true, message: 'Please choose a question'}]}>
+                        <Form.Item name="q1" rules={[{required: true, message: 'Please choose a question'}]}
+                                   validateTrigger="onSubmit">
                             <div
                                 className={`${styles.floatField} ${(q1Val || q1Open || q1Fixed) ? styles.hasValue : ''}`}>
                                 <div ref={refs.q1.box}
@@ -158,16 +211,13 @@ export default function RegisterPage() {
                                     <Select
                                         className={styles.select}
                                         placeholder=""
-                                        showSearch
+                                        showSearch={false}    // <- non-typable
                                         allowClear
                                         aria-label="Security question 1"
                                         onDropdownOpenChange={setQ1Open}
-                                        onChange={(val) => setQ1Fixed(Boolean(val))}
-                                        filterOption={(input, option) =>
-                                            (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
-                                        }
+                                        onChange={(val) => form.setFieldValue('q1', val)}
                                     >
-                                        {SECURITY_QUESTION_BANK.map(q => (
+                                        {availableQuestions('q1').map(q => (
                                             <Option key={`q1-${q}`} value={q}>{q}</Option>
                                         ))}
                                     </Select>
@@ -176,7 +226,8 @@ export default function RegisterPage() {
                             </div>
                         </Form.Item>
 
-                        <Form.Item name="a1" rules={[{required: true, message: 'Please provide an answer'}]}>
+                        <Form.Item name="a1" rules={[{required: true, message: 'Please provide an answer'}]}
+                                   validateTrigger="onSubmit">
                             <div className={`${styles.floatField} ${a1Val ? styles.hasValue : ''}`}>
                                 <div ref={refs.a1.box} className={`${styles.notchBox} ${a1Val ? 'floated' : ''}`}>
                                     <Input className={styles.innerInput} autoComplete="off" aria-label="Answer 1"/>
@@ -188,7 +239,8 @@ export default function RegisterPage() {
 
                     {/* Q2 + A2 */}
                     <div className={styles.grid2}>
-                        <Form.Item name="q2" rules={[{required: true, message: 'Please choose a question'}]}>
+                        <Form.Item name="q2" rules={[{required: true, message: 'Please choose a question'}]}
+                                   validateTrigger="onSubmit">
                             <div
                                 className={`${styles.floatField} ${(q2Val || q2Open || q2Fixed) ? styles.hasValue : ''}`}>
                                 <div ref={refs.q2.box}
@@ -196,16 +248,13 @@ export default function RegisterPage() {
                                     <Select
                                         className={styles.select}
                                         placeholder=""
-                                        showSearch
+                                        showSearch={false}    // <- non-typable
                                         allowClear
                                         aria-label="Security question 2"
                                         onDropdownOpenChange={setQ2Open}
-                                        onChange={(val) => setQ2Fixed(Boolean(val))}
-                                        filterOption={(input, option) =>
-                                            (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
-                                        }
+                                        onChange={(val) => form.setFieldValue('q2', val)}
                                     >
-                                        {SECURITY_QUESTION_BANK.map(q => (
+                                        {availableQuestions('q2').map(q => (
                                             <Option key={`q2-${q}`} value={q}>{q}</Option>
                                         ))}
                                     </Select>
@@ -214,7 +263,8 @@ export default function RegisterPage() {
                             </div>
                         </Form.Item>
 
-                        <Form.Item name="a2" rules={[{required: true, message: 'Please provide an answer'}]}>
+                        <Form.Item name="a2" rules={[{required: true, message: 'Please provide an answer'}]}
+                                   validateTrigger="onSubmit">
                             <div className={`${styles.floatField} ${a2Val ? styles.hasValue : ''}`}>
                                 <div ref={refs.a2.box} className={`${styles.notchBox} ${a2Val ? 'floated' : ''}`}>
                                     <Input className={styles.innerInput} autoComplete="off" aria-label="Answer 2"/>
@@ -226,25 +276,22 @@ export default function RegisterPage() {
 
                     {/* Q3 + A3 */}
                     <div className={styles.grid2}>
-                        <Form.Item name="q3" rules={[{required: true, message: 'Please choose a question'}]}>
+                        <Form.Item name="q3" rules={[{required: true, message: 'Please choose a question'}]}
+                                   validateTrigger="onSubmit">
                             <div
                                 className={`${styles.floatField} ${(q3Val || q3Open || q3Fixed) ? styles.hasValue : ''}`}>
-                                <div
-                                    ref={refs.q3.box}
-                                    className={`${styles.notchBox} ${(q3Val || q3Open || q3Fixed) ? 'floated' : ''}`}>
+                                <div ref={refs.q3.box}
+                                     className={`${styles.notchBox} ${(q3Val || q3Open || q3Fixed) ? 'floated' : ''}`}>
                                     <Select
                                         className={styles.select}
                                         placeholder=""
-                                        showSearch
+                                        showSearch={false}    // <- non-typable
                                         allowClear
                                         aria-label="Security question 3"
                                         onDropdownOpenChange={setQ3Open}
-                                        onChange={(val) => setQ3Fixed(Boolean(val))}
-                                        filterOption={(input, option) =>
-                                            (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
-                                        }
+                                        onChange={(val) => form.setFieldValue('q3', val)}
                                     >
-                                        {SECURITY_QUESTION_BANK.map(q => (
+                                        {availableQuestions('q3').map(q => (
                                             <Option key={`q3-${q}`} value={q}>{q}</Option>
                                         ))}
                                     </Select>
@@ -253,7 +300,8 @@ export default function RegisterPage() {
                             </div>
                         </Form.Item>
 
-                        <Form.Item name="a3" rules={[{required: true, message: 'Please provide an answer'}]}>
+                        <Form.Item name="a3" rules={[{required: true, message: 'Please provide an answer'}]}
+                                   validateTrigger="onSubmit">
                             <div className={`${styles.floatField} ${a3Val ? styles.hasValue : ''}`}>
                                 <div ref={refs.a3.box} className={`${styles.notchBox} ${a3Val ? 'floated' : ''}`}>
                                     <Input className={styles.innerInput} autoComplete="off" aria-label="Answer 3"/>

@@ -1,4 +1,3 @@
-// frontend/src/pages/LoginPage.jsx
 import React, {useEffect, useLayoutEffect, useRef} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import {Button, Card, Form, Input, Typography, message} from 'antd';
@@ -37,13 +36,11 @@ export default function LoginPage() {
     useLayoutEffect(() => {
         applyGap();
     }, []);
-
     useEffect(() => {
         const onResize = () => applyGap();
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
-
     useEffect(() => {
         applyGap();
     }, [emailValue, passwordValue]);
@@ -59,7 +56,7 @@ export default function LoginPage() {
 
     return (
         <div className={styles.wrapper}>
-            <Card className={`${styles.card} ${styles.fadeIn}`} bordered={false}>
+            <Card className={`${styles.card} ${styles.fadeIn}`} variant="borderless">
                 <header className={styles.header}>
                     <div className={styles.logoWrap} aria-hidden>
                         <span className={styles.logoGlow}/>
@@ -76,14 +73,48 @@ export default function LoginPage() {
                     form={form}
                     layout="vertical"
                     onFinish={onFinish}
-                    className={styles.form}
+                    onFinishFailed={({errorFields}) => {
+                        const byName = new Map();
+                        for (const f of errorFields) {
+                            const key = Array.isArray(f.name) ? f.name.join('.') : String(f.name ?? '');
+                            const errs = f.errors || [];
+                            if (!byName.has(key)) byName.set(key, []);
+                            byName.set(key, byName.get(key).concat(errs));
+                        }
+
+                        const emailErrs = [...new Set(byName.get('email') || [])];
+                        const pwdErrs = [...new Set(byName.get('password') || [])];
+                        const otherErrs = [...new Set(
+                            [...byName.entries()]
+                                .filter(([n]) => n !== 'email' && n !== 'password')
+                                .flatMap(([, errs]) => errs)
+                        )];
+
+                        if (emailErrs.length) {
+                            message.error({content: emailErrs.join('\n'), duration: 4});
+                        }
+                        if (pwdErrs.length) {
+                            message.error({content: pwdErrs.join('\n'), duration: 4});
+                        }
+                        if (otherErrs.length) {
+                            message.error({content: otherErrs.join('\n'), duration: 4});
+                        }
+                    }}
+                    className={`${styles.form} ${styles.formNoExplain}`}
                     size="large"
                     requiredMark={false}
                     autoComplete="on"
+                    validateTrigger="onSubmit"
+                    noValidate
                 >
                     <Form.Item
                         name="email"
-                        rules={[{required: true, message: 'Please enter your email'}, {type: 'email'}]}
+                        rules={[
+                            {required: true, message: 'Please enter your email'},
+                            {type: 'email', message: 'Please enter a valid email'},
+                        ]}
+                        // ensure item itself doesn’t validate onChange/onBlur
+                        validateTrigger="onSubmit"
                     >
                         <div className={`${styles.floatField} ${emailValue ? styles.hasValue : ''}`}>
                             <div
@@ -103,6 +134,7 @@ export default function LoginPage() {
                     <Form.Item
                         name="password"
                         rules={[{required: true, message: 'Please enter your password'}]}
+                        validateTrigger="onSubmit"
                     >
                         <div className={`${styles.floatField} ${passwordValue ? styles.hasValue : ''}`}>
                             <div

@@ -206,9 +206,9 @@ app.post('/auth/reset-with-qa', async (req, res) => {
 app.post('/auth/login', async (req, res) => {
     const {email, password} = req.body || {};
     const user = await User.findOne({where: {email}});
-    if (!user) return res.status(401).json({error: 'Invalid credentials'});
+    if (!user) return res.status(401).json({error: 'User not found'});
     const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({error: 'Invalid credentials'});
+    if (!ok) return res.status(401).json({error: 'Password does not match'});
     const token = signToken(user);
     res.json({token, user: {id: user.id, email: user.email, role: user.role}});
 });

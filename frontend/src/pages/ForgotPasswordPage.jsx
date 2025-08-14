@@ -181,7 +181,7 @@ export default function ForgotPasswordPage() {
 
     return (
         <div className={styles.wrapper}>
-            <Card className={styles.card} bordered={false}>
+            <Card className={styles.card} variant="borderless">
                 <header className={styles.header}>
                     <Title level={3} style={{margin: 0}}>Forgot Password</Title>
                     <Text className={styles.subtitle}>

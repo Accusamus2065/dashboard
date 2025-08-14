@@ -245,3 +245,8 @@
         transform: translateY(0) scale(1);
     }
 }
+
+/* Hide AntD inline validation explains; we’ll use toast instead */
+.formNoExplain :global(.ant-form-item-explain) {
+    display: none !important;
+}

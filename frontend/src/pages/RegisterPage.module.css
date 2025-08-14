@@ -261,3 +261,21 @@
         transform: translateY(0) scale(1);
     }
 }
+
+/* Hide AntD inline validation messages & neutralize red error styling */
+.formNoExplain :global(.ant-form-item-explain) {
+    display: none !important;
+}
+
+/* Remove red borders/shadows when AntD marks a field as error */
+.formNoExplain :global(.ant-form-item-has-error .ant-input),
+.formNoExplain :global(.ant-form-item-has-error .ant-input-affix-wrapper),
+.formNoExplain :global(.ant-form-item-has-error .ant-select .ant-select-selector) {
+    border-color: var(--stroke) !important;
+    box-shadow: none !important;
+}
+
+/* Also suppress the red label color */
+.formNoExplain :global(.ant-form-item-has-error .ant-form-item-label > label) {
+    color: inherit !important;
+}
