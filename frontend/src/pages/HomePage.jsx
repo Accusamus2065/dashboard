@@ -211,6 +211,7 @@ export default function HomePage() {
         {
             title: 'Name / Version',
             dataIndex: 'name',
+            width: 180,
             render: (_, m) => (
                 <Space size={6} wrap>
                     <Text strong>{m?.name || '(unnamed)'}</Text>
@@ -221,6 +222,7 @@ export default function HomePage() {
         {
             title: 'Compliance',
             dataIndex: 'compliance',
+            width: 200,
             render: (_, m) => {
                 const st = statusMap.get(m.id);
                 if (!st) return null;
@@ -261,8 +263,8 @@ export default function HomePage() {
             dataIndex: 'business_tags',
             render: (_, m) => {
                 const tags = Array.isArray(m?.business_tags) ? m.business_tags : [];
-                const head = tags.slice(0, 4);
-                const more = Math.max(tags.length - 4, 0);
+                const head = tags.slice(0, 0);
+                const more = Math.max(tags.length, 0);
                 return (
                     <div className={styles.tagsWrap}>
                         {head.map((t, i) => (<Tag key={i}>{t}</Tag>))}
@@ -276,7 +278,7 @@ export default function HomePage() {
                                 }
                                 overlayStyle={{maxWidth: 420}}
                             >
-                                <Tag color="blue"><MoreOutlined/> {more} more</Tag>
+                                <Tag color="blue">click to view</Tag>
                             </Popover>
                         )}
                     </div>
@@ -285,6 +287,7 @@ export default function HomePage() {
         },
         {
             title: 'Metrics',
+            width: 380,
             dataIndex: 'metrics',
             render: (_, m) => metricChips(m),
         },
