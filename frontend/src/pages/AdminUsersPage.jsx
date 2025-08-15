@@ -1,11 +1,15 @@
 // frontend/src/pages/AdminUsersPage.jsx
 import React, {useEffect, useMemo, useState} from 'react';
 import '@ant-design/v5-patch-for-react-19';
-import {Table, Typography, Space, Button, Select, message, Input, Tag, Popconfirm, Tooltip} from 'antd';
+import {
+    Table, Typography, Space, Button, Select, message, Input, Tag, Popconfirm, Tooltip, Pagination
+} from 'antd';
 import {ReloadOutlined, DeleteOutlined, ArrowLeftOutlined} from '@ant-design/icons';
 import api from '../services/api';
 import {useAuth} from '../contexts/AuthContext';
 import {useNavigate} from 'react-router-dom';
+import dayjs from 'dayjs';
+import styles from './AdminUsersPage.module.css';
 
 const {Title} = Typography;
 const {Option} = Select;
@@ -21,6 +25,10 @@ export default function AdminUsersPage() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [q, setQ] = useState('');
+
+    // pagination we control (so footer can be sticky)
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
 
     const load = async () => {
         setLoading(true);
@@ -64,26 +72,45 @@ export default function AdminUsersPage() {
         return users.filter(u => (u.email || '').toLowerCase().includes(k));
     }, [users, q]);
 
+    // slice the page ourselves so Table never scrolls; it only shows one page worth
+    const paged = useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return filtered.slice(start, start + pageSize);
+    }, [filtered, page, pageSize]);
+
+    // reset to first page when filter changes or page overflows
+    useEffect(() => {
+        const maxPage = Math.max(1, Math.ceil(filtered.length / pageSize));
+        if (page > maxPage) setPage(1);
+    }, [filtered.length, page, pageSize]);
+
     const columns = [
-        {title: 'ID', dataIndex: 'id', key: 'id', width: 80},
+        {title: 'ID', dataIndex: 'id', key: 'id', width: 0, align: 'center'},
         {
             title: 'Email',
             dataIndex: 'email',
             key: 'email',
+            width: 450,
             render: (v, r) => (
                 <Space>
-                    <span>{v}</span>
+                    <span className="emailCell">{v}</span>
                     {me?.id === r.id && <Tag color="blue">you</Tag>}
                 </Space>
             )
         },
         {
+            title: 'Created At',
+            dataIndex: 'created_at',
+            key: 'created_at',
+            render: (value) => dayjs(value).format('MMMM D, YYYY, h:mm A')
+        },
+        {
             title: 'Role',
             dataIndex: 'role',
             key: 'role',
-            width: 300,
+            width: 450,
             render: (r, record) => (
-                <Space>
+                <Space wrap>
                     <Tag
                         color={r === 'admin' ? 'red' : r === 'auditor' ? 'blue' : r === 'uploader' ? 'green' : 'default'}>
                         {r}
@@ -91,21 +118,21 @@ export default function AdminUsersPage() {
                     <Select
                         value={r}
                         onChange={(val) => onChangeRole(record.id, val)}
-                        style={{width: 160}}
+                        style={{width: 180}}
                     >
                         {ROLES.map(x => <Option key={x} value={x}>{x}</Option>)}
                     </Select>
                 </Space>
             )
         },
-        {title: 'Created At', dataIndex: 'created_at', key: 'created_at', width: 220},
     ];
+
 
     if (isAdmin) {
         columns.push({
             title: 'Actions',
             key: 'actions',
-            width: 140,
+            width: 150,
             render: (_t, record) => {
                 const isSelf = me?.id === record.id;
                 return (
@@ -131,31 +158,56 @@ export default function AdminUsersPage() {
     }
 
     return (
-        <div style={{padding: 24}}>
-            <Space style={{width: '100%', justifyContent: 'space-between', marginBottom: 12}}>
-                <Space align="center">
-                    <Button
-                        icon={<ArrowLeftOutlined/>}
-                        onClick={() => navigate(-1)}
-                        aria-label="Back"
-                    >
-                        Back
-                    </Button>
-                    <Title level={3} style={{margin: 0}}>User Management</Title>
-                </Space>
-                <Space>
-                    <Search placeholder="Search email" allowClear onSearch={setQ} style={{width: 240}}/>
-                    <Button icon={<ReloadOutlined/>} onClick={load}>Refresh</Button>
-                </Space>
-            </Space>
+        <div className={styles.page}>
+            <div className={styles.main}>
+                <div className={styles.header}>
+                    <Space align="center">
+                        <Button
+                            icon={<ArrowLeftOutlined/>}
+                            onClick={() => navigate(-1)}
+                            aria-label="Back"
+                        >
+                            Back
+                        </Button>
+                        <Title level={3} style={{margin: 0}}>User Management</Title>
+                    </Space>
+                    <Space>
+                        <Search
+                            placeholder="Search email"
+                            allowClear
+                            onSearch={setQ}
+                            onChange={(e) => setQ(e.target.value)}
+                            style={{width: 260}}
+                        />
+                        <Button icon={<ReloadOutlined/>} onClick={load}>Refresh</Button>
+                    </Space>
+                </div>
 
-            <Table
-                rowKey="id"
-                dataSource={filtered}
-                columns={columns}
-                loading={loading}
-                pagination={{pageSize: 10}}
-            />
+                <div className={styles.tableWrap}>
+                    <Table
+                        rowKey="id"
+                        dataSource={paged}
+                        columns={columns}
+                        loading={loading}
+                        pagination={false}           /* no table pager — we use sticky footer below */
+                    />
+                </div>
+            </div>
+
+            {/* Sticky footer paginator */}
+            <div className={styles.footer}>
+                <Pagination
+                    current={page}
+                    pageSize={pageSize}
+                    total={filtered.length}
+                    showSizeChanger
+                    pageSizeOptions={['5', '10', '20', '50']}
+                    onChange={(p, ps) => {
+                        setPage(p);
+                        setPageSize(ps);
+                    }}
+                />
+            </div>
         </div>
     );
 }

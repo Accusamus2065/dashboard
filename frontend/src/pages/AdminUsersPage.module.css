@@ -1,0 +1,52 @@
+/* Page shell: sticky footer, no table scroll */
+.page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: radial-gradient(1100px 520px at -10% -10%, rgba(99, 102, 241, .10), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(56, 189, 248, .10), transparent 60%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+    .page {
+        background: radial-gradient(1100px 520px at -10% -10%, rgba(99, 102, 241, .18), transparent 60%),
+        radial-gradient(900px 500px at 110% 10%, rgba(56, 189, 248, .18), transparent 60%),
+        linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
+    }
+}
+
+.main {
+    flex: 1;
+    padding: 20px 22px 10px;
+}
+
+/* Header row */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+/* Table tweaks: let columns auto-size and wrap; never horizontal-scroll */
+.tableWrap :global(.ant-table) {
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.tableWrap :global(.ant-table-thead > tr > th) {
+    font-weight: 600;
+}
+
+.tableWrap :global(.ant-table) .emailCell {
+    word-break: break-all;
+}
+
+/* Sticky footer paginator */
+.footer {
+    padding: 10px 22px 18px;
+    display: flex;
+    justify-content: center;
+}

@@ -178,8 +178,8 @@ export default function HomePage() {
             <div className={styles.metricGroup}>
                 {chips.map((c, i) => (
                     <span key={i} className={styles.metricChip}>
-            {c.label}: {c.value}
-          </span>
+                        {c.label}: {c.value}
+                    </span>
                 ))}
             </div>
         );
@@ -204,7 +204,8 @@ export default function HomePage() {
         {
             title: '#',
             dataIndex: 'index',
-            align: 'right',
+            width: 30,
+            align: 'center',
             render: (_, __, idx) => (page - 1) * pageSize + idx + 1,
         },
         {
@@ -223,13 +224,21 @@ export default function HomePage() {
             render: (_, m) => {
                 const st = statusMap.get(m.id);
                 if (!st) return null;
-                const compliant = st.missing.length === 0 && st.pending === 0;
-                const missing = st.missing.length;
-                const pending = st.pending;
-                return compliant
-                    ? <Badge status="success" text="Compliant"/>
-                    : pending > 0 ? <Badge status="warning" text={`Pending ${pending}`}/>
-                        : <Badge status="error" text={`Missing ${missing}`}/>;
+                const missing = Array.isArray(st.missing) ? st.missing.length : 0;
+                const pending = Number(st.pending) || 0;
+
+                // If nothing missing/pending => Complete
+                if (missing === 0 && pending === 0) {
+                    return <Badge status="success" text="Complete"/>;
+                }
+
+                // Otherwise show both (or whichever applies)
+                return (
+                    <Space size={6} wrap>
+                        {missing > 0 && <Badge status="error" text={`Missing ${missing}`} style={{marginRight: 5}}/>}
+                        {pending > 0 && <Badge status="warning" text={`Pending ${pending}`}/>}
+                    </Space>
+                );
             },
         },
         {
@@ -282,8 +291,9 @@ export default function HomePage() {
         {
             title: 'Actions',
             dataIndex: 'actions',
+            width: 285,
             render: (_, m) => (
-                <div className={styles.actionsWrap}>
+                <div className={styles.actionsWrap} style={{width: '100%'}}>
                     <Button size="small" icon={<EyeOutlined/>} onClick={() => navigate(`/view/${m.id}`)}>View</Button>
                     {canEdit && <Button size="small" icon={<EditOutlined/>}
                                         onClick={() => navigate(`/edit/${m.id}`)}>Edit</Button>}
@@ -311,9 +321,7 @@ export default function HomePage() {
                                 }
                             }}
                         >
-                            <div style={{marginLeft: 'auto'}}>
-                                <Button danger icon={<DeleteOutlined/>} size="small"/>
-                            </div>
+                            <Button danger icon={<DeleteOutlined/>} size="small"/>
                         </Popconfirm>
                     )}
                 </div>
@@ -361,7 +369,12 @@ export default function HomePage() {
                     <Search
                         placeholder="Search name, description, owner, tags"
                         allowClear
-                        enterButton={<SearchOutlined/>}
+                        enterButton={
+                            <Button
+                                icon={<SearchOutlined/>}
+                                style={{width: 50}}
+                            />
+                        }
                         value={q}
                         onChange={(e) => {
                             setQ(e.target.value);
@@ -414,12 +427,7 @@ export default function HomePage() {
                     </Space.Compact>
                 </div>
 
-                {/* Results strip */}
-                <div className={styles.resultsBar}>
-                    <Text className={styles.count}>{filteredItems.length} result(s)</Text>
-                </div>
-
-                {/* Table view (no horizontal scroll; columns wrap) */}
+                {/* Table view */}
                 <div className={styles.tableWrap}>
                     <Table
                         rowKey="id"
@@ -451,7 +459,6 @@ export default function HomePage() {
             <Drawer
                 className={styles.drawer}
                 title="Advanced Filters"
-                placement="right"
                 open={advOpen}
                 onClose={() => setAdvOpen(false)}
                 width={420}
