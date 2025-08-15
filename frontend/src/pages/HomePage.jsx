@@ -1,13 +1,13 @@
 // frontend/src/pages/HomePage.jsx
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import {
     Typography, Button, Input, Space, Select, Popconfirm, message, Tag, Divider, Alert,
-    Drawer, Checkbox, Slider, DatePicker, Pagination, Badge, Tooltip, Table, Popover
+    Drawer, Checkbox, Slider, DatePicker, Pagination, Badge, Table, Popover
 } from 'antd';
 import {
     PlusOutlined, EyeOutlined, DeleteOutlined, PlayCircleOutlined, EditOutlined, TeamOutlined,
-    FilterOutlined, ReloadOutlined, SortAscendingOutlined, SearchOutlined, LogoutOutlined, MoreOutlined
+    FilterOutlined, ReloadOutlined, SortAscendingOutlined, SearchOutlined, LogoutOutlined
 } from '@ant-design/icons';
 import api from '../services/api';
 import {SCHEMA_MODES, RISK_LEVELS, LICENSES} from '../constants/constant';
@@ -29,6 +29,12 @@ const SORT_OPTIONS = [
     {value: 'latency_asc', label: 'Latency (low→high)'},
 ];
 
+const REQUIRED_BY_RISK = {
+    high: ['FRIA', 'DPIA', 'PRIVACY'],
+    medium: ['PRIVACY'],
+    low: []
+};
+
 export default function HomePage() {
     const {user, hasRole, logout} = useAuth();
     const navigate = useNavigate();
@@ -39,9 +45,8 @@ export default function HomePage() {
 
     // data
     const [items, setItems] = useState([]);
-    const [total, setTotal] = useState(0);
+    const [total, setTotal] = useState(0);             // ✅ 用于“已加载多少模型”的提示条
     const [loading, setLoading] = useState(false);
-    const [cStatus, setCStatus] = useState([]);
 
     // quick filters
     const [q, setQ] = useState('');
@@ -69,7 +74,18 @@ export default function HomePage() {
     const [pageSize, setPageSize] = useState(12);
 
     const [tagOptions, setTagOptions] = useState([]);
-    const [bannerOpen, setBannerOpen] = useState(true);
+
+    const tokenSuffix = (() => {
+        try {
+            const tk = localStorage.getItem('token') || '';
+            return tk ? tk.slice(-16) : 'anon';
+        } catch {
+            return 'anon';
+        }
+    })();
+    const BANNER_KEY = `home_loaded_banner_closed_${tokenSuffix}`;
+    const [bannerOpen, setBannerOpen] = useState(() => !localStorage.getItem(BANNER_KEY));
+    const [firstLoadDone, setFirstLoadDone] = useState(false);
 
     const licenseOptions = useMemo(() => {
         return (LICENSES || []).map(x =>
@@ -80,11 +96,7 @@ export default function HomePage() {
     useEffect(() => {
         (async () => {
             try {
-                const [allRes, stRes] = await Promise.all([
-                    api.get('/models'),
-                    api.get('/compliance/status')
-                ]);
-                setCStatus(stRes.data || []);
+                const allRes = await api.get('/models');
                 const setTags = new Set();
                 (allRes.data || []).forEach(m => (m.business_tags || []).forEach(t => setTags.add(t)));
                 setTagOptions(Array.from(setTags).sort());
@@ -117,7 +129,8 @@ export default function HomePage() {
             };
             const res = await api.get('/models/search', {params});
             setItems(res.data?.items || []);
-            setTotal(res.data?.total || 0);
+            setTotal(res.data?.total || 0);           // ✅ 用于顶部提示
+            setFirstLoadDone(true);                   // ✅ 首次载入完成
         } catch (e) {
             message.error(e.response?.data?.error || 'Failed to load models');
         } finally {
@@ -136,7 +149,49 @@ export default function HomePage() {
         dateRange, page, pageSize
     ]);
 
-    const missingCountTotal = (cStatus || []).filter(s => s.missing.length > 0).length;
+    const [docStats, setDocStats] = useState({});
+    const inFlight = useRef(new Set());
+
+    const fetchDocStat = async (m) => {
+        const id = m.id;
+        if (inFlight.current.has(id) || docStats[id]) return;
+        inFlight.current.add(id);
+        try {
+            const res = await api.get(`/models/${id}/compliance-docs`);
+            const docs = res.data || [];
+            const required = REQUIRED_BY_RISK[m.risk_level] || [];
+
+            const uploadedTypes = new Set(docs.map(d => d.type));
+            const missing = required.filter(t => !uploadedTypes.has(t)).length;          // ✅ 未上传任何文件的类型数
+            const pending = docs.filter(d => d.status === 'pending').length;             // ✅ 待审文件数（多少文件就是多少）
+            const complete = missing === 0 && pending === 0;                             // ✅ 完成条件
+
+            setDocStats(prev => ({...prev, [id]: {missing, pending, complete}}));
+        } catch {
+            // ignore
+        } finally {
+            inFlight.current.delete(id);
+        }
+    };
+
+    // 对当前结果里的模型生成/补全 doc 统计（缓存一次即可）
+    useEffect(() => {
+        (items || []).forEach(m => fetchDocStat(m));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items]);
+
+    /** ===== 依赖 docStats 的前端合规筛选 ===== */
+    const filteredItems = useMemo(() => {
+        if (complianceFilter === 'any') return items;
+        return items.filter(m => {
+            const st = docStats[m.id];
+            if (!st) return false; // 统计未到时，先隐藏以免误判
+            if (complianceFilter === 'compliant') return st.complete;
+            if (complianceFilter === 'pending') return st.pending > 0;
+            if (complianceFilter === 'missing') return st.missing > 0 && st.pending === 0;
+            return true;
+        });
+    }, [items, complianceFilter, docStats]);
 
     const resetAll = () => {
         setQ('');
@@ -158,12 +213,6 @@ export default function HomePage() {
         setPageSize(12);
     };
 
-    const statusMap = useMemo(() => {
-        const m = new Map();
-        (cStatus || []).forEach(s => m.set(s.model_id, s));
-        return m;
-    }, [cStatus]);
-
     const riskColor = r => r === 'high' ? 'red' : r === 'medium' ? 'orange' : 'green';
 
     /* Present metrics as nice chips instead of a long sentence */
@@ -178,28 +227,14 @@ export default function HomePage() {
             <div className={styles.metricGroup}>
                 {chips.map((c, i) => (
                     <span key={i} className={styles.metricChip}>
-                        {c.label}: {c.value}
-                    </span>
+            {c.label}: {c.value}
+          </span>
                 ))}
             </div>
         );
     };
 
-    const filteredItems = useMemo(() => {
-        if (complianceFilter === 'any') return items;
-        return items.filter(m => {
-            const st = statusMap.get(m.id);
-            if (!st) return false;
-            const compliant = st.missing.length === 0 && st.pending === 0;
-            if (complianceFilter === 'compliant') return compliant;
-            if (complianceFilter === 'pending') return st.pending > 0;
-            if (complianceFilter === 'missing') return st.missing.length > 0 && st.pending === 0;
-            return true;
-        });
-    }, [items, complianceFilter, statusMap]);
-
-    /* ===== Table columns =====
-       No column widths => table-layout: auto; cells can wrap and no horizontal scroll. */
+    /* ===== Table columns ===== */
     const columns = [
         {
             title: '#',
@@ -222,23 +257,19 @@ export default function HomePage() {
         {
             title: 'Compliance',
             dataIndex: 'compliance',
-            width: 200,
+            width: 220,
             render: (_, m) => {
-                const st = statusMap.get(m.id);
-                if (!st) return null;
-                const missing = Array.isArray(st.missing) ? st.missing.length : 0;
-                const pending = Number(st.pending) || 0;
+                const st = docStats[m.id];
+                if (!st) return <Text type="secondary">Loading…</Text>;
 
-                // If nothing missing/pending => Complete
-                if (missing === 0 && pending === 0) {
+                if (st.missing === 0 && st.pending === 0) {
                     return <Badge status="success" text="Complete"/>;
                 }
-
-                // Otherwise show both (or whichever applies)
                 return (
                     <Space size={6} wrap>
-                        {missing > 0 && <Badge status="error" text={`Missing ${missing}`} style={{marginRight: 5}}/>}
-                        {pending > 0 && <Badge status="warning" text={`Pending ${pending}`}/>}
+                        {st.missing > 0 &&
+                            <Badge status="error" text={`Missing ${st.missing}`} style={{marginRight: 5}}/>}
+                        {st.pending > 0 && <Badge status="warning" text={`Pending ${st.pending}`}/>}
                     </Space>
                 );
             },
@@ -263,7 +294,7 @@ export default function HomePage() {
             dataIndex: 'business_tags',
             render: (_, m) => {
                 const tags = Array.isArray(m?.business_tags) ? m.business_tags : [];
-                const head = tags.slice(0, 0);
+                const head = tags.slice(0, 0); // （保持你现有逻辑不动）
                 const more = Math.max(tags.length, 0);
                 return (
                     <div className={styles.tagsWrap}>
@@ -309,16 +340,8 @@ export default function HomePage() {
                                 try {
                                     await api.delete(`/models/${m.id}`);
                                     message.success('Deleted');
-                                    await Promise.all([
-                                        load(),
-                                        (async () => {
-                                            try {
-                                                const res = await api.get('/compliance/status');
-                                                setCStatus(res.data || []);
-                                            } catch {
-                                            }
-                                        })()
-                                    ]);
+                                    // 重新拉取列表（docStats 对应项让它自然失效即可）
+                                    await load();
                                 } catch (e) {
                                     message.error(e.response?.data?.error || 'Delete failed');
                                 }
@@ -354,16 +377,20 @@ export default function HomePage() {
 
                 <Divider style={{margin: '8px 0 10px'}}/>
 
-                {/* Compliance banner (closable) */}
-                {bannerOpen && filteredItems.length > 0 && missingCountTotal > 0 && (
+                {bannerOpen && firstLoadDone && total > 0 && (
                     <Alert
-                        type="warning"
+                        type="info"
                         showIcon
                         closable
-                        onClose={() => setBannerOpen(false)}
+                        onClose={() => {
+                            setBannerOpen(false);
+                            try {
+                                localStorage.setItem(BANNER_KEY, '1');
+                            } catch {
+                            }
+                        }}
                         style={{marginBottom: 10}}
-                        message={`${missingCountTotal} model(s) are missing required compliance docs`}
-                        action={<Button size="small" onClick={() => setAdvOpen(true)}>Review</Button>}
+                        message={`${total} model(s) loaded`}
                     />
                 )}
 
@@ -372,12 +399,7 @@ export default function HomePage() {
                     <Search
                         placeholder="Search name, description, owner, tags"
                         allowClear
-                        enterButton={
-                            <Button
-                                icon={<SearchOutlined/>}
-                                style={{width: 50}}
-                            />
-                        }
+                        enterButton={<Button icon={<SearchOutlined/>} style={{width: 50}}/>}
                         value={q}
                         onChange={(e) => {
                             setQ(e.target.value);
@@ -467,7 +489,7 @@ export default function HomePage() {
                 width={420}
             >
                 <Space direction="vertical" size="large" style={{width: '100%'}}>
-                    {/* 1) Data Dependencies FIRST */}
+                    {/* 1) Data Dependencies */}
                     <div>
                         <Text strong>Data Dependencies</Text>
                         <div style={{marginTop: 8}}>
@@ -482,9 +504,8 @@ export default function HomePage() {
                         </div>
                     </div>
 
-                    {/* 2) Compliance Document SECOND (renamed) */}
                     <div>
-                        <Text strong>Compliance Document</Text>
+                        <Text strong>Compliance</Text>
                         <div style={{marginTop: 8}}>
                             <Select
                                 value={complianceFilter}
