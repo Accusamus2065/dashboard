@@ -128,15 +128,9 @@ export default function EditPage() {
             title: 'Status',
             dataIndex: 'status',
             key: 'status',
-            render: (s, r) => {
-                const queued = reviewDecisions[r.id];
+            render: (s) => {
                 const colorNow = s === 'approved' ? 'green' : s === 'rejected' ? 'red' : 'gold';
-                return (
-                    <Space size={6} wrap>
-                        <Tag color={colorNow}>{s}</Tag>
-                        {queued && <Tag color={queued === 'approved' ? 'blue' : 'volcano'}>queued: {queued}</Tag>}
-                    </Space>
-                );
+                return <Tag color={colorNow}>{s}</Tag>;       // ← 去掉 queued 的显示
             },
         },
         {
@@ -153,40 +147,73 @@ export default function EditPage() {
             align: 'center',
             render: (_t, r) => {
                 const canDelete = canDeleteAny || r.uploaded_by === user?.id;
-                const queued = reviewDecisions[r.id];
+
+                // 当前选中的操作（approved | rejected | undefined）
+                const selected = reviewDecisions[r.id];
+                const isApprove = selected === 'approved';
+                const isReject = selected === 'rejected';
+
+                const toggleDecision = (docId, next) => {
+                    setReviewDecisions(d => {
+                        const cur = d[docId];
+                        if (cur === next) {                // 再点一次 -> 取消选择
+                            const nd = {...d};
+                            delete nd[docId];
+                            return nd;
+                        }
+                        return {...d, [docId]: next};      // 选中
+                    });
+                };
+
                 return (
                     <Space size={8} wrap>
                         {canReview && r.status === 'pending' && (
                             <>
                                 <Tooltip title="Approve">
                                     <Button
-                                        type="text"
-                                        icon={<CheckCircleOutlined style={{color: 'green'}}/>}
-                                        onClick={() => setReviewDecisions(d => ({...d, [r.id]: 'approved'}))}
+                                        style={{
+                                            color: reviewDecisions[r.id] === 'approved' ? '#13c2c2' : '#13c2c2',
+                                            border: reviewDecisions[r.id] === 'approved' ? '1px solid #b5f5ec' : 'none',
+                                        }}
+                                        icon={<CheckCircleOutlined/>}
+                                        onClick={() =>
+                                            setReviewDecisions(d => {
+                                                const current = d[r.id];
+                                                const nd = {...d};
+                                                if (current === 'approved') {
+                                                    delete nd[r.id];
+                                                } else {
+                                                    nd[r.id] = 'approved';
+                                                }
+                                                return nd;
+                                            })
+                                        }
                                     />
                                 </Tooltip>
                                 <Tooltip title="Reject">
                                     <Button
-                                        type="text"
-                                        danger
-                                        icon={<CloseCircleOutlined style={{color: 'red'}}/>}
-                                        onClick={() => setReviewDecisions(d => ({...d, [r.id]: 'rejected'}))}
+                                        style={{
+                                            color: reviewDecisions[r.id] === 'rejected' ? '#f5222d' : '#f5222d',
+                                            border: reviewDecisions[r.id] === 'rejected' ? '1px solid #ffa39e' : 'none',
+                                        }}
+                                        icon={<CloseCircleOutlined/>}
+                                        onClick={() =>
+                                            setReviewDecisions(d => {
+                                                const current = d[r.id];
+                                                const nd = {...d};
+                                                if (current === 'rejected') {
+                                                    delete nd[r.id];
+                                                } else {
+                                                    nd[r.id] = 'rejected';
+                                                }
+                                                return nd;
+                                            })
+                                        }
                                     />
                                 </Tooltip>
                             </>
                         )}
-                        {queued && (
-                            <Button
-                                className={styles.inlineLink}
-                                onClick={() => setReviewDecisions(d => {
-                                    const nd = {...d};
-                                    delete nd[r.id];
-                                    return nd;
-                                })}
-                            >
-                                Undo
-                            </Button>
-                        )}
+
                         {canDelete && (
                             <Tooltip title="Delete">
                                 <Popconfirm
@@ -213,7 +240,7 @@ export default function EditPage() {
                     </Space>
                 );
             }
-        }
+        },
     ];
 
     // helpers

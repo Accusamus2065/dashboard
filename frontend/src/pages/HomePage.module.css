@@ -213,3 +213,68 @@
         border-color: rgba(148, 163, 184, .18);
     }
 }
+
+/* 审核动作按钮：统一尺寸与圆角 */
+.actionBtn {
+    border-radius: 8px;
+    padding: 0 8px;
+    height: 28px;
+}
+
+/* Approve 默认/选中 */
+.actionApprove {
+    background: rgba(34, 197, 94, .10);
+}
+
+.actionApproveOn {
+    background: rgba(34, 197, 94, .25);
+}
+
+/* Reject 默认/选中 */
+.actionReject {
+    background: rgba(239, 68, 68, .10);
+}
+
+.actionRejectOn {
+    background: rgba(239, 68, 68, .24);
+}
+
+/* 图标颜色（深浅模式都清晰） */
+.actionApprove :global(.anticon) {
+    color: #22c55e;
+}
+
+.actionReject :global(.anticon) {
+    color: #ef4444;
+}
+
+/* 轻微悬停反馈 */
+.actionBtn:hover {
+    filter: brightness(1.05);
+}
+
+/* 加强优先级并使用 !important */
+.actionApprove {
+    background: rgba(34, 197, 94, 0.10) !important;
+}
+
+.actionApproveOn {
+    background: rgba(34, 197, 94, 0.25) !important;
+}
+
+.actionReject {
+    background: rgba(239, 68, 68, 0.10) !important;
+}
+
+.actionRejectOn {
+    background: rgba(239, 68, 68, 0.24) !important;
+}
+
+/* 强制覆盖图标颜色 */
+.actionApprove :global(.anticon) {
+    color: #22c55e !important;
+}
+
+.actionReject :global(.anticon) {
+    color: #ef4444 !important;
+}
