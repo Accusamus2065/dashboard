@@ -236,7 +236,7 @@
 .form :global(.ant-form-item-has-error .ant-upload-select),
 .form :global(.ant-form-item-has-error .ant-picker),
 .form :global(.ant-form-item-has-error .ant-picker-input > input) {
-    border-color: var(--neutral-border, rgba(100, 116, 139, .28)) !important;
+    border-color: rgba(100, 116, 139, .28) !important;
     box-shadow: none !important;
 }
 
