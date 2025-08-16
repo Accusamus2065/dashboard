@@ -31,20 +31,20 @@
     padding: 28px;
 }
 
-/* Topbar with Back + title */
+/* Top bar */
 .topbar {
-    display: grid;
-    grid-template-columns: auto 1fr;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 12px;
 }
 
 .header {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 6px;
+    flex-direction: column;
+    gap: 4px;
+    margin-right: auto;
+    margin-left: 5px;
 }
 
 .subtitle {
@@ -75,20 +75,20 @@
     margin-bottom: 14px;
 }
 
-/* Two-column grid for desktop, stacks on mobile */
+/* Two-column grid */
 .twoCol {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px 16px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
     .twoCol {
         grid-template-columns: 1fr;
     }
 }
 
-/* Group boxes (visual separation) */
+/* Group box */
 .group {
     border: 1px solid rgba(100, 116, 139, .22);
     border-radius: 14px;
@@ -101,55 +101,31 @@
     }
 }
 
-/* Baseline metrics: exactly four equal columns */
-.metricsGrid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px 16px;
-}
-
-/* Upload list row (file + small select) */
+/* Upload list row */
 .uploadRow {
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
-/* Footer actions */
+/* Footer */
 .actions {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
-    margin-top: 10px;
+    margin-top: 6px;
 }
 
-/* Make tags input a bit roomier */
-.tags :global(.ant-select-selector) {
-    border-radius: 12px;
-}
-
-/* Rounder inputs & selects for overall consistency */
+/* Rounder inputs */
 .form :global(.ant-input),
 .form :global(.ant-input-number),
 .form :global(.ant-select-selector),
-.form :global(.ant-upload-select) {
+.form :global(.ant-upload-select),
+.form :global(.ant-upload-drag) {
     border-radius: 12px !important;
 }
 
-/* Remove red borders + glows for any invalid item */
-.form :global(.ant-form-item-has-error .ant-input),
-.form :global(.ant-form-item-has-error .ant-select-selector),
-.form :global(.ant-form-item-has-error .ant-input-number),
-.form :global(.ant-form-item-has-error .ant-input-number .ant-input-number-input),
-.form :global(.ant-form-item-has-error .ant-upload),
-.form :global(.ant-form-item-has-error .ant-upload-select),
-.form :global(.ant-form-item-has-error .ant-picker),
-.form :global(.ant-form-item-has-error .ant-picker-input > input) {
-    border-color: var(--neutral-border, rgba(100, 116, 139, .28)) !important;
-    box-shadow: none !important;
-}
-
-/* Ensure controls respect container width */
+/* width handling */
 .form :global(.ant-form-item-control) {
     min-width: 0;
 }
@@ -164,28 +140,225 @@
     box-sizing: border-box;
 }
 
+/* tags wrap */
 .form :global(.ant-select-multiple .ant-select-selection-overflow) {
     flex-wrap: wrap;
 }
 
-/* Compact the dragger to avoid huge empty space */
-:global(.ant-upload.ant-upload-drag) {
-    padding: 18px 12px;
+/* Tooltip icon */
+.helpIcon {
+    margin-left: 6px;
+    font-size: 14px;
+    opacity: .85;
+    cursor: pointer;
+}
+
+.helpIcon:hover {
+    opacity: 1;
+}
+
+/* Tooltip content */
+.tip {
+    max-width: 520px;
+    white-space: normal;
+    line-height: 1.45;
+    font-size: 12.5px;
+}
+
+.tip code {
+    padding: 0 4px;
+    border-radius: 4px;
+    background: rgba(148, 163, 184, .2);
+}
+
+.tipOverlay :global(.ant-tooltip-inner) {
+    backdrop-filter: saturate(140%) blur(2px);
+}
+
+/* Metrics row: 4 equal cols centered */
+.metricsGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
+    gap: 12px 16px;
+    align-items: center;
+    justify-items: center;
+    text-align: center;
+}
+
+.metricItem :global(.ant-form-item-label) {
+    display: flex;
+    justify-content: center;
+}
+
+.metricItem :global(.ant-form-item-control-input) {
+    display: flex;
+    justify-content: center;
+}
+
+.metricInput {
+    width: 160px;
+}
+
+/* Label with icon + inline link */
+.labelWithIcon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.inlineLink {
+    padding: 0;
+    height: auto;
+}
+
+/* Softer dragger border */
+.form :global(.ant-upload-drag) {
+    border-color: rgba(100, 116, 139, .28);
+}
+
+@media (prefers-color-scheme: dark) {
+    .form :global(.ant-upload-drag) {
+        border-color: rgba(148, 163, 184, .28);
+    }
+}
+
+/* Tags input */
+.tags :global(.ant-select-selector) {
     border-radius: 12px;
 }
 
-:global(.ant-upload.ant-upload-drag .ant-upload-text) {
-    font-size: 13px;
+/* Remove red error borders */
+.form :global(.ant-form-item-has-error .ant-input),
+.form :global(.ant-form-item-has-error .ant-select-selector),
+.form :global(.ant-form-item-has-error .ant-input-number),
+.form :global(.ant-form-item-has-error .ant-input-number .ant-input-number-input),
+.form :global(.ant-form-item-has-error .ant-upload),
+.form :global(.ant-form-item-has-error .ant-upload-select),
+.form :global(.ant-form-item-has-error .ant-picker),
+.form :global(.ant-form-item-has-error .ant-picker-input > input) {
+    border-color: var(--neutral-border, rgba(100, 116, 139, .28)) !important;
+    box-shadow: none !important;
 }
 
-:global(.ant-upload.ant-upload-drag .ant-upload-hint) {
+/* ------- Learn more modal ------- */
+.guideBody {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-right: 8px;
+    line-height: 1.6;
+    font-size: 13.5px;
+}
+
+.preBlock {
+    background: rgba(148, 163, 184, .12);
+    border: 1px solid rgba(100, 116, 139, .25);
+    border-radius: 8px;
+    padding: 10px 12px;
+    overflow: auto;
+    margin: 8px 0 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 12.5px;
+}
+
+/* pretty scrollbar */
+.customScroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(200, 200, 200, .4) transparent;
+}
+
+.customScroll::-webkit-scrollbar {
+    width: 8px;
+}
+
+.customScroll::-webkit-scrollbar-thumb {
+    background-color: rgba(200, 200, 200, .4);
+    border-radius: 6px;
+}
+
+.customScroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* -------- Compliance redesigned -------- */
+.compHeader {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.compLegend {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dot {
+    margin: 0 6px;
+    opacity: .6;
+}
+
+.compHint {
     font-size: 12px;
-    opacity: .85;
 }
 
-/* Tiny “i“ icon alignment */
-.helpIcon {
-    font-size: 14px;
+.compDrop {
+    border-radius: 12px !important;
+    padding: 10px !important;
+}
+
+.docList {
+    margin-top: 12px;
+    display: grid;
+    gap: 8px;
+}
+
+.docItem {
+    display: grid;
+    grid-template-columns: 1fr 220px 40px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid rgba(100, 116, 139, .22);
+    border-radius: 10px;
+    background: rgba(148, 163, 184, .06);
+}
+
+.docMeta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.docIcon {
+    font-size: 18px;
     opacity: .8;
-    vertical-align: middle;
+}
+
+.docName {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 520px;
+}
+
+.docSize {
+    font-size: 12px;
+    opacity: .7;
+}
+
+.docTypeSelect {
+    width: 100%;
+}
+
+.removeBtn {
+    color: #ef4444;
+}
+
+.removeBtn:hover {
+    color: #dc2626;
 }

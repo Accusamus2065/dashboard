@@ -132,7 +132,7 @@ export default function ModelDetailPage() {
         const arr = [];
         if (model.baseline_accuracy != null) arr.push({label: 'Accuracy', value: model.baseline_accuracy});
         if (model.baseline_f1 != null) arr.push({label: 'F1 Score', value: model.baseline_f1});
-        if (model.baseline_auc != null) arr.push({label: 'Area Under the Curve', value: model.baseline_auc});
+        if (model.baseline_auc != null) arr.push({label: 'AUC', value: model.baseline_auc});
         if (model.baseline_latency_ms != null) arr.push({label: 'Latency', value: `${model.baseline_latency_ms} ms`});
         return arr;
     }, [model]);
@@ -257,8 +257,11 @@ export default function ModelDetailPage() {
 
                     {/* Brief Description at the bottom, full width */}
                     <Descriptions.Item label="Brief Description" span={4}>
-                        {model.description || <Text type="secondary">—</Text>}
+                        {model.description
+                            ? <div style={{whiteSpace: 'pre-line'}}>{model.description}</div>
+                            : <Text type="secondary">—</Text>}
                     </Descriptions.Item>
+
                 </Descriptions>
 
                 {/* Approved Compliance Docs (only render if there is any) */}

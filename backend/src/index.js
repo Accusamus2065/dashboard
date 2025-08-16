@@ -59,6 +59,9 @@ const storage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
     filename: (_req, file, cb) => cb(null, `${Date.now()}_${file.originalname}`)
 });
+
+// ⚠️ 总体允许类型依旧较宽（以兼容合规模块、数据集等上传）
+// 具体到“模型文件”，在路由里做 .zip 强校验
 const upload = multer({
     storage,
     fileFilter: (_req, file, cb) => {
@@ -69,7 +72,7 @@ const upload = multer({
 });
 app.use('/uploads', express.static(UPLOAD_DIR));
 
-// ---- Associations (must be before sync) ----
+// ---- Associations ----
 ComplianceDoc.belongsTo(Model, {foreignKey: 'model_id'});
 ComplianceDoc.belongsTo(User, {as: 'uploader', foreignKey: 'uploaded_by'});
 ComplianceDoc.belongsTo(User, {as: 'reviewer', foreignKey: 'reviewer_id'});
@@ -245,7 +248,6 @@ app.delete('/admin/users/:id', authRequired, requireRole('admin'), async (req, r
     }
 });
 
-
 app.put('/admin/users/:id/role', authRequired, requireRole('admin'), async (req, res) => {
     const {role} = req.body || {};
     if (!USER_ROLES.includes(role)) return res.status(400).json({error: 'Invalid role'});
@@ -268,16 +270,15 @@ app.get('/models/search', authRequired, async (req, res, next) => {
             page = 1, pageSize = 24
         } = req.query;
 
-        const where = [];
+        const whereArr = [];
         const {Op, literal, fn, where: whereFn} = require('sequelize');
         const sequelize = require('./config/sequelize');
 
-        // 关键词
         if (q && String(q).trim()) {
             const terms = String(q).trim().split(/\s+/);
             for (const t of terms) {
                 const like = `%${t}%`;
-                where.push({
+                whereArr.push({
                     [Op.or]: [
                         {name: {[Op.iLike]: like}},
                         {description: {[Op.iLike]: like}},
@@ -295,28 +296,28 @@ app.get('/models/search', authRequired, async (req, res, next) => {
             }
         }
 
-        if (risk) where.push({risk_level: {[Op.in]: String(risk).split(',')}});
-        if (schema) where.push({input_schema: {[Op.in]: String(schema).split(',')}});
-        if (license) where.push({license: {[Op.in]: String(license).split(',')}});
+        if (risk) whereArr.push({risk_level: {[Op.in]: String(risk).split(',')}});
+        if (schema) whereArr.push({input_schema: {[Op.in]: String(schema).split(',')}});
+        if (license) whereArr.push({license: {[Op.in]: String(license).split(',')}});
 
         if (tags) {
             const arr = String(tags).split(',').map(s => s.trim()).filter(Boolean);
             if (arr.length) {
-                if (tagsMode === 'all') where.push({business_tags: {[Op.contains]: arr}});
-                else where.push({business_tags: {[Op.overlap]: arr}});
+                if (tagsMode === 'all') whereArr.push({business_tags: {[Op.contains]: arr}});
+                else whereArr.push({business_tags: {[Op.overlap]: arr}});
             }
         }
 
-        if (hasTrain === 'true') where.push(literal(`training_data_uris IS NOT NULL AND array_length(training_data_uris, 1) > 0`));
-        if (hasVal === 'true') where.push(literal(`validation_data_uris IS NOT NULL AND array_length(validation_data_uris, 1) > 0`));
+        if (hasTrain === 'true') whereArr.push(literal(`training_data_uris IS NOT NULL AND array_length(training_data_uris, 1) > 0`));
+        if (hasVal === 'true') whereArr.push(literal(`validation_data_uris IS NOT NULL AND array_length(validation_data_uris, 1) > 0`));
 
-        if (minAcc !== undefined) where.push({baseline_accuracy: {[Op.gte]: Number(minAcc)}});
-        if (minF1 !== undefined) where.push({baseline_f1: {[Op.gte]: Number(minF1)}});
-        if (minAUC !== undefined) where.push({baseline_auc: {[Op.gte]: Number(minAUC)}});
-        if (maxLatency !== undefined) where.push({baseline_latency_ms: {[Op.lte]: Number(maxLatency)}});
+        if (minAcc !== undefined) whereArr.push({baseline_accuracy: {[Op.gte]: Number(minAcc)}});
+        if (minF1 !== undefined) whereArr.push({baseline_f1: {[Op.gte]: Number(minF1)}});
+        if (minAUC !== undefined) whereArr.push({baseline_auc: {[Op.gte]: Number(minAUC)}});
+        if (maxLatency !== undefined) whereArr.push({baseline_latency_ms: {[Op.lte]: Number(maxLatency)}});
 
         if (dateFrom || dateTo) {
-            where.push({
+            whereArr.push({
                 updated_at: {
                     ...(dateFrom ? {[Op.gte]: new Date(dateFrom)} : {}),
                     ...(dateTo ? {[Op.lte]: new Date(dateTo)} : {}),
@@ -343,15 +344,15 @@ app.get('/models/search', authRequired, async (req, res, next) => {
             include.push({
                 model: ComplianceDoc,
                 as: 'docs',
-                required: true,   // 至少有一条 doc
+                required: true,
                 attributes: []
             });
         }
 
         const {rows, count} = await Model.findAndCountAll({
-            where: where.length ? {[Op.and]: where} : undefined,
+            where: whereArr.length ? {[Op.and]: whereArr} : undefined,
             include: include.length ? include : undefined,
-            distinct: true,                     // ← 只保留 distinct
+            distinct: true,
             order: [order],
             limit,
             offset,
@@ -369,7 +370,7 @@ app.get('/models/search', authRequired, async (req, res, next) => {
     }
 });
 
-// Everyone logged-in can list (table view still可用)
+// Everyone logged-in can list
 app.get('/models', authRequired, async (req, res, next) => {
     try {
         const list = await Model.findAll({order: [['id', 'ASC']]});
@@ -395,7 +396,7 @@ app.post(
     '/models',
     authRequired, requireRole(['uploader', 'admin']),
     upload.fields([
-        {name: 'files', maxCount: 10},
+        {name: 'files', maxCount: 1},          // ← 仅 1 个 ZIP
         {name: 'readme', maxCount: 1},
         {name: 'compliance_docs', maxCount: 20},
         {name: 'training_data', maxCount: 50},
@@ -417,12 +418,28 @@ app.post(
             if (license && !LICENSES.includes(license)) {
                 return res.status(400).json({error: 'Invalid license'});
             }
-            if (!req.files || !req.files.files || req.files.files.length === 0) {
-                return res.status(400).json({error: 'Model artifact file is required'});
+
+            // ---- 模型文件仅支持 ZIP，并强校验命名 ----
+            const filesArr = req.files?.files || [];
+            if (!filesArr.length) return res.status(400).json({error: 'Model artifact file is required (.zip)'});
+
+            const mf = filesArr[0];
+            const base = path.basename(mf.originalname);
+            if (!/\.zip$/i.test(base)) {
+                return res.status(400).json({error: 'Model file must be a .zip archive'});
+            }
+            if (!/^[A-Za-z0-9._-]+\.zip$/.test(base)) {
+                return res.status(400).json({error: 'Model .zip name must be ASCII [A-Za-z0-9._-] with no spaces'});
             }
 
-            const artifact_uri = `/uploads/${req.files.files[0].filename}`;
-            const readme_uri = req.files.readme?.[0] ? `/uploads/${req.files.readme[0].filename}` : null;
+            // ---- README 仅允许 .md 或 .pdf ----
+            const readme = req.files.readme?.[0];
+            if (readme && !/\.(md|pdf)$/i.test(readme.originalname)) {
+                return res.status(400).json({error: 'README must be .md or .pdf'});
+            }
+
+            const artifact_uri = `/uploads/${mf.filename}`;
+            const readme_uri = readme ? `/uploads/${readme.filename}` : null;
             const compliance_docs = toArrayFromFiles(req.files.compliance_docs);
             const training_data_uris = toArrayFromFiles(req.files.training_data);
             const validation_data_uris = toArrayFromFiles(req.files.validation_data);
@@ -453,7 +470,7 @@ app.put(
     '/models/:id',
     authRequired, requireRole(['uploader', 'admin']),
     upload.fields([
-        {name: 'files', maxCount: 10},
+        {name: 'files', maxCount: 1},          // ← 仅 1 个 ZIP
         {name: 'readme', maxCount: 1},
         {name: 'compliance_docs', maxCount: 20},
         {name: 'training_data', maxCount: 50},
@@ -487,8 +504,28 @@ app.put(
 
             if (req.body.business_tags !== undefined) data.business_tags = safeParseArray(req.body.business_tags);
 
-            if (req.files?.files?.length) data.artifact_uri = `/uploads/${req.files.files[0].filename}`;
-            if (req.files?.readme?.length) data.readme_uri = `/uploads/${req.files.readme[0].filename}`;
+            // 可选替换 ZIP
+            if (req.files?.files?.length) {
+                const mf = req.files.files[0];
+                const base = path.basename(mf.originalname);
+                if (!/\.zip$/i.test(base)) {
+                    return res.status(400).json({error: 'Model file must be a .zip archive'});
+                }
+                if (!/^[A-Za-z0-9._-]+\.zip$/.test(base)) {
+                    return res.status(400).json({error: 'Model .zip name must be ASCII [A-Za-z0-9._-] with no spaces'});
+                }
+                data.artifact_uri = `/uploads/${mf.filename}`;
+            }
+
+            // 可选替换 README（仅 .md|.pdf）
+            if (req.files?.readme?.length) {
+                const readme = req.files.readme[0];
+                if (!/\.(md|pdf)$/i.test(readme.originalname)) {
+                    return res.status(400).json({error: 'README must be .md or .pdf'});
+                }
+                data.readme_uri = `/uploads/${readme.filename}`;
+            }
+
             if (req.files?.compliance_docs?.length) data.compliance_docs = toArrayFromFiles(req.files.compliance_docs);
             if (req.files?.training_data?.length) data.training_data_uris = toArrayFromFiles(req.files.training_data);
             if (req.files?.validation_data?.length) data.validation_data_uris = toArrayFromFiles(req.files.validation_data);
