@@ -185,7 +185,7 @@ export default function HomePage() {
         if (complianceFilter === 'any') return items;
         return items.filter(m => {
             const st = docStats[m.id];
-            if (!st) return false; // 统计未到时，先隐藏以免误判
+            if (!st) return false;
             if (complianceFilter === 'compliant') return st.complete;
             if (complianceFilter === 'pending') return st.pending > 0;
             if (complianceFilter === 'missing') return st.missing > 0 && st.pending === 0;
@@ -257,7 +257,7 @@ export default function HomePage() {
         {
             title: 'Compliance',
             dataIndex: 'compliance',
-            width: 220,
+            width: 200,
             render: (_, m) => {
                 const st = docStats[m.id];
                 if (!st) return <Text type="secondary">Loading…</Text>;

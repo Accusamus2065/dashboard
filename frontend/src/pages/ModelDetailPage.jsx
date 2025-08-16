@@ -1,15 +1,21 @@
-// frontend/src/pages/ModelDetailPage.jsx
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useState, useMemo} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import {
-    Descriptions, Spin, Button, message, Typography, Divider, Tag,
-    Upload, Select, Space, Table, Modal, Input, Popconfirm, Alert
+    Descriptions,
+    Spin,
+    Button,
+    message,
+    Typography,
+    Divider,
+    Tag,
+    Table,
+    Card,
+    Space
 } from 'antd';
-import {UploadOutlined, CheckCircleOutlined, CloseCircleOutlined} from '@ant-design/icons';
+import {ArrowLeftOutlined, EditOutlined, FilePdfOutlined} from '@ant-design/icons';
 import {useParams, useNavigate} from 'react-router-dom';
 import api from '../services/api';
 import {useAuth} from '../contexts/AuthContext';
-import {COMPLIANCE_DOC_TYPES} from '../constants/constant';
 
 // Markdown renderer and plugins
 import ReactMarkdown from 'react-markdown';
@@ -18,9 +24,9 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, {defaultSchema} from 'rehype-sanitize';
 import 'github-markdown-css/github-markdown-light.css';
 
-const {Title} = Typography;
-const {Option} = Select;
-const {TextArea} = Input;
+import styles from './ModelDetailPage.module.css';
+
+const {Title, Text} = Typography;
 
 const sanitizeSchema = {
     ...defaultSchema,
@@ -38,26 +44,18 @@ const sanitizeSchema = {
     }
 };
 
+const BASE = 'http://localhost:3000';
+
 export default function ModelDetailPage() {
     const {id} = useParams();
     const navigate = useNavigate();
-    const {hasRole, user} = useAuth();
-
+    const {hasRole} = useAuth();
     const canEdit = hasRole(['uploader', 'admin']);
 
     const [model, setModel] = useState(null);
     const [loading, setLoading] = useState(false);
     const [readmeText, setReadmeText] = useState('');
-
-    // compliance
-    const canUploadDoc = hasRole(['uploader', 'admin']);
-    const canReview = hasRole(['auditor', 'admin']);
-    const canDeleteAny = hasRole('admin');
-
-    const [docType, setDocType] = useState('FRIA');
-    const [docFile, setDocFile] = useState([]);
     const [docs, setDocs] = useState([]);
-    const [reviewModal, setReviewModal] = useState({open: false, id: null, status: 'approved', note: ''});
 
     // Load model
     useEffect(() => {
@@ -76,7 +74,7 @@ export default function ModelDetailPage() {
                 return;
             }
             try {
-                const url = `http://localhost:3000${model.readme_uri}`;
+                const url = `${BASE}${model.readme_uri}`;
                 const resp = await fetch(url);
                 const txt = await resp.text();
                 setReadmeText(txt);
@@ -87,284 +85,229 @@ export default function ModelDetailPage() {
         loadReadme();
     }, [model?.readme_uri]);
 
-    // Compliance docs
-    const loadCompliance = async () => {
-        try {
-            const res = await api.get(`/models/${id}/compliance-docs`);
-            setDocs(res.data || []);
-        } catch {
-            message.error('Failed to load compliance docs');
-        }
-    };
+    // Load ALL compliance docs, but View 仅展示 approved
     useEffect(() => {
+        const loadCompliance = async () => {
+            try {
+                const res = await api.get(`/models/${id}/compliance-docs`);
+                setDocs(res.data || []);
+            } catch {
+                message.error('Failed to load compliance docs');
+            }
+        };
         loadCompliance();
     }, [id]);
 
-    const uploadDoc = async () => {
-        if (!docFile[0]?.originFileObj) return message.error('Please select a file');
-        const fd = new FormData();
-        fd.append('type', docType);
-        fd.append('doc', docFile[0].originFileObj);
-        try {
-            await api.post(`/models/${id}/compliance-docs`, fd, {headers: {'Content-Type': 'multipart/form-data'}});
-            message.success('Uploaded');
-            setDocFile([]);
-            setDocType('FRIA');
-            loadCompliance();
-        } catch (e) {
-            message.error(e.response?.data?.error || 'Upload failed');
-        }
-    };
+    const approvedDocs = useMemo(() => (docs || []).filter(d => d.status === 'approved'), [docs]);
+    const approvedPdfDocs = useMemo(
+        () => approvedDocs.filter(d => /\.pdf(\?|$)/i.test(d.uri || '')),
+        [approvedDocs]
+    );
 
-    const doReview = async () => {
-        try {
-            await api.put(`/compliance-docs/${reviewModal.id}/review`, {
-                status: reviewModal.status,
-                note: reviewModal.note
-            });
-            message.success('Reviewed');
-            setReviewModal({open: false, id: null, status: 'approved', note: ''});
-            loadCompliance();
-        } catch (e) {
-            message.error(e.response?.data?.error || 'Review failed');
-        }
-    };
-
-    const columns = [
+    const docColumns = [
         {title: 'ID', dataIndex: 'id', key: 'id', width: 70},
-        {title: 'Type', dataIndex: 'type', key: 'type', render: t => <Tag>{t}</Tag>, width: 110},
+        {title: 'Type', dataIndex: 'type', key: 'type', width: 110, render: t => <Tag>{t}</Tag>},
         {
             title: 'File',
             dataIndex: 'uri',
             key: 'uri',
-            render: (u) => <a href={`http://localhost:3000${u}`} target="_blank"
-                              rel="noreferrer">{u.split('/').pop()}</a>
+            render: (u) => (
+                <a href={`${BASE}${u}`} target="_blank" rel="noreferrer">
+                    {u.split('/').pop()}
+                </a>
+            )
         },
-        {
-            title: 'Status',
-            dataIndex: 'status',
-            key: 'status',
-            width: 130,
-            render: s => {
-                const color = s === 'approved' ? 'green' : s === 'rejected' ? 'red' : 'gold';
-                return <Tag color={color}>{s}</Tag>;
-            }
-        },
-        {title: 'Uploader', key: 'uploader', width: 180, render: (_, r) => r.uploader?.email || r.uploaded_by},
         {title: 'Reviewer', key: 'reviewer', width: 180, render: (_, r) => r.reviewer?.email || '—'},
         {
-            title: 'Actions',
-            key: 'actions',
-            width: 260,
-            render: (_t, r) => {
-                const canDelete = canDeleteAny || r.uploaded_by === user?.id;
-                return (
-                    <Space>
-                        {canReview && r.status === 'pending' && (
-                            <>
-                                <Button icon={<CheckCircleOutlined/>}
-                                        onClick={() => setReviewModal({
-                                            open: true,
-                                            id: r.id,
-                                            status: 'approved',
-                                            note: ''
-                                        })}>
-                                    Approve
-                                </Button>
-                                <Button danger icon={<CloseCircleOutlined/>}
-                                        onClick={() => setReviewModal({
-                                            open: true,
-                                            id: r.id,
-                                            status: 'rejected',
-                                            note: ''
-                                        })}>
-                                    Reject
-                                </Button>
-                            </>
-                        )}
-                        {canDelete && (
-                            <Popconfirm
-                                title="Delete this document?"
-                                onConfirm={async () => {
-                                    try {
-                                        await api.delete(`/compliance-docs/${r.id}`);
-                                        message.success('Deleted');
-                                        loadCompliance();
-                                    } catch (e) {
-                                        message.error(e.response?.data?.error || 'Delete failed');
-                                    }
-                                }}
-                            >
-                                <Button danger>Delete</Button>
-                            </Popconfirm>
-                        )}
-                    </Space>
-                );
-            }
+            title: 'Reviewed At', dataIndex: 'reviewed_at', key: 'reviewed_at', width: 200,
+            render: v => (v ? new Date(v).toLocaleString() : '—')
         }
     ];
 
-    if (loading || !model) return <Spin/>;
+    if (loading || !model) {
+        return (
+            <div className={styles.wrapper}>
+                <Spin/>
+            </div>
+        );
+    }
 
     return (
-        <div style={{padding: 24}}>
-            <Button onClick={() => navigate(`/`)} style={{marginBottom: 16}}>Back</Button>
-            <Title level={3}>Model #{model.id} — {model.name}</Title>
-
-            <Descriptions bordered column={1}>
-                <Descriptions.Item label="Version">{model.version}</Descriptions.Item>
-                <Descriptions.Item label="Brief Description">{model.description}</Descriptions.Item>
-                <Descriptions.Item label="Input Schema">{model.input_schema}</Descriptions.Item>
-                <Descriptions.Item label="Risk Level">{model.risk_level}</Descriptions.Item>
-                <Descriptions.Item label="Artifact">
-                    <a href={`http://localhost:3000${model.artifact_uri}`} download>Download</a>
-                </Descriptions.Item>
-
-                {(model.baseline_latency_ms != null ||
-                    model.baseline_accuracy != null ||
-                    model.baseline_f1 != null ||
-                    model.baseline_auc != null) && (
-                    <Descriptions.Item label="Baseline Metrics">
-                        {model.baseline_latency_ms != null &&
-                            <span>Latency: {model.baseline_latency_ms} ms&nbsp;&nbsp;</span>}
-                        {model.baseline_accuracy != null &&
-                            <span>Accuracy: {model.baseline_accuracy}&nbsp;&nbsp;</span>}
-                        {model.baseline_f1 != null && <span>F1: {model.baseline_f1}&nbsp;&nbsp;</span>}
-                        {model.baseline_auc != null && <span>AUC: {model.baseline_auc}</span>}
-                    </Descriptions.Item>
-                )}
-
-                {Array.isArray(model.business_tags) && model.business_tags.length > 0 && (
-                    <Descriptions.Item label="Business Tags">
-                        {model.business_tags.map((t, i) => <Tag key={i}>{t}</Tag>)}
-                    </Descriptions.Item>
-                )}
-
-                {/* 注意：后端会按角色移除这些字段；这里“存在才显示”，没有权限时也不会出现 */}
-                {model.owner_contact && (
-                    <Descriptions.Item label="Owner Contact">{model.owner_contact}</Descriptions.Item>
-                )}
-
-                {model.license && (
-                    <Descriptions.Item label="License">{model.license}</Descriptions.Item>
-                )}
-
-                {Array.isArray(model.training_data_uris) && model.training_data_uris.length > 0 && (
-                    <Descriptions.Item label="Training Data">
-                        {model.training_data_uris.map((u, i) => (
-                            <div key={i}>
-                                <a href={`http://localhost:3000${u}`} target="_blank" rel="noreferrer">
-                                    {u.split('/').pop()}
-                                </a>
-                            </div>
-                        ))}
-                    </Descriptions.Item>
-                )}
-
-                {Array.isArray(model.validation_data_uris) && model.validation_data_uris.length > 0 && (
-                    <Descriptions.Item label="Validation Data">
-                        {model.validation_data_uris.map((u, i) => (
-                            <div key={i}>
-                                <a href={`http://localhost:3000${u}`} target="_blank" rel="noreferrer">
-                                    {u.split('/').pop()}
-                                </a>
-                            </div>
-                        ))}
-                    </Descriptions.Item>
-                )}
-            </Descriptions>
-
-            <Divider/>
-
-            {/* 合规文档管理 */}
-            <Title level={4} style={{marginBottom: 8}}>Compliance Documents</Title>
-            <Alert
-                type="info"
-                message="Required docs: High risk → FRIA, DPIA, PRIVACY; Medium → PRIVACY; Low → none"
-                showIcon
-                style={{marginBottom: 12}}
-            />
-
-            {canUploadDoc && (
-                <Space direction="vertical" size="small" style={{marginBottom: 12, width: '100%'}}>
-                    <Space wrap>
-                        <Select value={docType} onChange={setDocType} style={{width: 180}}>
-                            {COMPLIANCE_DOC_TYPES.map(t => <Option key={t} value={t}>{t}</Option>)}
-                        </Select>
-                        <Upload
-                            id="doc"
-                            name="doc"
-                            accept=".pdf,.doc,.docx,.txt,.md"
-                            beforeUpload={() => false}
-                            fileList={docFile}
-                            onChange={(info) => setDocFile(info.fileList.slice(-1))}
-                            maxCount={1}
-                        >
-                            <Button icon={<UploadOutlined/>}>Choose File</Button>
-                        </Upload>
-                        <Button type="primary" onClick={uploadDoc}>Upload</Button>
-                    </Space>
-                </Space>
-            )}
-
-            <Table
-                rowKey="id"
-                dataSource={docs}
-                columns={columns}
-                pagination={{pageSize: 10}}
-            />
-
-            <Divider/>
-            <Title level={4} style={{marginBottom: 12}}>README</Title>
-
-            {model.readme_uri ? (
-                <article
-                    className="markdown-body"
-                    style={{
-                        background: '#fff',
-                        padding: 16,
-                        border: '1px solid #eee',
-                        borderRadius: 8,
-                        overflowX: 'auto'
-                    }}
-                >
-                    <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
-                        components={{
-                            a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer"/>,
-                            img: ({node, ...props}) => <img {...props} loading="lazy"
-                                                            style={{maxWidth: '100%', height: 'auto'}} alt={"img"}/>
-                        }}
+        <div className={styles.wrapper}>
+            <Card className={styles.card} bordered={false}>
+                {/* Header */}
+                <div className={styles.header}>
+                    <Button
+                        icon={<ArrowLeftOutlined/>}
+                        onClick={() => navigate(-1)}
+                        aria-label="Back"
                     >
-                        {readmeText}
-                    </ReactMarkdown>
-                </article>
-            ) : (
-                <div>No README uploaded.</div>
-            )}
+                        Back
+                    </Button>
 
-            {/* Review modal */}
-            <Modal
-                open={reviewModal.open}
-                title={reviewModal.status === 'approved' ? 'Approve Document' : 'Reject Document'}
-                onCancel={() => setReviewModal({open: false, id: null, status: 'approved', note: ''})}
-                onOk={doReview}
-            >
-                <p>Status: <b>{reviewModal.status}</b></p>
-                <TextArea
-                    value={reviewModal.note}
-                    onChange={e => setReviewModal(s => ({...s, note: e.target.value}))}
-                    placeholder="Optional note"
-                    rows={4}
-                />
-            </Modal>
+                    <div className={styles.titleBox}>
+                        <Title level={3} style={{margin: 0}}>
+                            Model #{model.id} — {model.name}
+                        </Title>
+                        {model.version && <Tag className={styles.versionTag}>{model.version}</Tag>}
+                    </div>
+                </div>
 
-            <div style={{marginTop: 16}}>
-                {canEdit && (
-                    <Button type="primary" onClick={() => navigate(`/edit/${id}`)}>Edit</Button>
+                <Divider style={{margin: '10px 0 16px'}}/>
+
+                {/* Summary */}
+                <Descriptions
+                    bordered
+                    column={1}
+                    className={styles.desc}
+                    labelStyle={{width: 220}}
+                >
+                    <Descriptions.Item label="Brief Description">{model.description}</Descriptions.Item>
+                    <Descriptions.Item label="Input Schema">{model.input_schema}</Descriptions.Item>
+                    <Descriptions.Item label="Risk Level">
+                        <Tag
+                            color={model.risk_level === 'high' ? 'red' : model.risk_level === 'medium' ? 'orange' : 'green'}>
+                            {model.risk_level}
+                        </Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Artifact">
+                        <a href={`${BASE}${model.artifact_uri}`} download>Download</a>
+                    </Descriptions.Item>
+
+                    {(model.baseline_latency_ms != null ||
+                        model.baseline_accuracy != null ||
+                        model.baseline_f1 != null ||
+                        model.baseline_auc != null) && (
+                        <Descriptions.Item label="Baseline Metrics">
+                            <div className={styles.metrics}>
+                                {model.baseline_accuracy != null && (
+                                    <span className={styles.metricChip}>Acc: {model.baseline_accuracy}</span>
+                                )}
+                                {model.baseline_f1 != null && (
+                                    <span className={styles.metricChip}>F1: {model.baseline_f1}</span>
+                                )}
+                                {model.baseline_auc != null && (
+                                    <span className={styles.metricChip}>AUC: {model.baseline_auc}</span>
+                                )}
+                                {model.baseline_latency_ms != null && (
+                                    <span className={styles.metricChip}>Lat: {model.baseline_latency_ms} ms</span>
+                                )}
+                            </div>
+                        </Descriptions.Item>
+                    )}
+
+                    {Array.isArray(model.business_tags) && model.business_tags.length > 0 && (
+                        <Descriptions.Item label="Business Tags">
+                            <Space wrap size={[6, 6]}>
+                                {model.business_tags.map((t, i) => <Tag key={i}>{t}</Tag>)}
+                            </Space>
+                        </Descriptions.Item>
+                    )}
+
+                    {model.owner_contact && (
+                        <Descriptions.Item label="Owner Contact">{model.owner_contact}</Descriptions.Item>
+                    )}
+
+                    {model.license && (
+                        <Descriptions.Item label="License">{model.license}</Descriptions.Item>
+                    )}
+
+                    {Array.isArray(model.training_data_uris) && model.training_data_uris.length > 0 && (
+                        <Descriptions.Item label="Training Data">
+                            {model.training_data_uris.map((u, i) => (
+                                <div key={i}>
+                                    <a href={`${BASE}${u}`} target="_blank" rel="noreferrer">
+                                        {u.split('/').pop()}
+                                    </a>
+                                </div>
+                            ))}
+                        </Descriptions.Item>
+                    )}
+
+                    {Array.isArray(model.validation_data_uris) && model.validation_data_uris.length > 0 && (
+                        <Descriptions.Item label="Validation Data">
+                            {model.validation_data_uris.map((u, i) => (
+                                <div key={i}>
+                                    <a href={`${BASE}${u}`} target="_blank" rel="noreferrer">
+                                        {u.split('/').pop()}
+                                    </a>
+                                </div>
+                            ))}
+                        </Descriptions.Item>
+                    )}
+                </Descriptions>
+
+                <Divider/>
+
+                {/* Approved Compliance Docs (table + PDF previews) */}
+                <Title level={4} style={{marginBottom: 12}}>Approved Compliance Documents</Title>
+                <div className={styles.tableWrap}>
+                    <Table
+                        rowKey="id"
+                        dataSource={approvedDocs}
+                        columns={docColumns}
+                        pagination={{pageSize: 10}}
+                        size="middle"
+                    />
+                </div>
+
+                {approvedPdfDocs.length > 0 && (
+                    <>
+                        <Divider/>
+                        <div className={styles.pdfHeader}>
+                            <Title level={5} style={{margin: 0}}>
+                                <FilePdfOutlined/> PDF Preview
+                            </Title>
+                            <Text type="secondary">Approved PDFs are rendered inline below.</Text>
+                        </div>
+                        <div className={styles.pdfGrid}>
+                            {approvedPdfDocs.map((d) => (
+                                <div key={d.id} className={styles.pdfItem}>
+                                    <iframe
+                                        title={`pdf-${d.id}`}
+                                        src={`${BASE}${d.uri}`}
+                                        className={styles.pdfFrame}
+                                    />
+                                    <div className={styles.pdfCaption}>
+                                        <span className={styles.pdfName}>{(d.uri || '').split('/').pop()}</span>
+                                        <Tag size="small">{d.type}</Tag>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
                 )}
-            </div>
+
+                <Divider/>
+
+                {/* README */}
+                <Title level={4} style={{marginBottom: 12}}>README</Title>
+                {model.readme_uri ? (
+                    <article className={`${styles.readme} markdown-body`}>
+                        <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+                            components={{
+                                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer"/>,
+                                img: ({node, ...props}) => <img {...props} loading="lazy"
+                                                                style={{maxWidth: '100%', height: 'auto'}} alt="img"/>
+                            }}
+                        >
+                            {readmeText}
+                        </ReactMarkdown>
+                    </article>
+                ) : (
+                    <div className={styles.readmePlaceholder}>No README uploaded.</div>
+                )}
+
+                <div className={styles.footerActions}>
+                    {canEdit && (
+                        <Button type="primary" icon={<EditOutlined/>} onClick={() => navigate(`/edit/${id}`)}>
+                            Edit
+                        </Button>
+                    )}
+                </div>
+            </Card>
         </div>
     );
 }

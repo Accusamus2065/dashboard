@@ -1,0 +1,222 @@
+/* ===== Page theme wrapper ===== */
+.wrapper {
+    min-height: 100vh;
+    padding: 24px;
+    display: grid;
+    place-items: start center;
+    background: radial-gradient(1200px 600px at -10% -10%, rgba(99, 102, 241, .12), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(56, 189, 248, .12), transparent 60%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+    .wrapper {
+        background: radial-gradient(1200px 600px at -10% -10%, rgba(99, 102, 241, .18), transparent 60%),
+        radial-gradient(900px 500px at 110% 10%, rgba(56, 189, 248, .18), transparent 60%),
+        linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
+    }
+}
+
+/* ===== Card container ===== */
+.card {
+    width: 100%;
+    max-width: 1100px;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 10px 35px rgba(15, 23, 42, .18);
+    backdrop-filter: saturate(140%) blur(4px);
+}
+
+.card :global(.ant-card-body) {
+    padding: 28px;
+}
+
+/* ===== Header ===== */
+.header {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    align-items: center;
+}
+
+.titleBox {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.versionTag {
+    border-radius: 9999px;
+}
+
+/* ===== Descriptions styling ===== */
+.desc :global(.ant-descriptions-bordered) {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.desc :global(.ant-descriptions-item-label) {
+    background: rgba(148, 163, 184, .12);
+}
+
+@media (prefers-color-scheme: dark) {
+    .desc :global(.ant-descriptions-item-label) {
+        background: rgba(148, 163, 184, .16);
+    }
+}
+
+/* ===== Metrics chips ===== */
+.metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.metricChip {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 9999px;
+    background: rgba(99, 102, 241, .1);
+    border: 1px solid rgba(99, 102, 241, .18);
+}
+
+@media (prefers-color-scheme: dark) {
+    .metricChip {
+        background: rgba(99, 102, 241, .18);
+        border-color: rgba(99, 102, 241, .28);
+    }
+}
+
+/* ===== Table wrapper (avoid horizontal scroll by default) ===== */
+.tableWrap {
+    overflow-x: auto;
+}
+
+/* ===== PDF preview grid ===== */
+.pdfHeader {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.pdfGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+@media (max-width: 900px) {
+    .pdfGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.pdfItem {
+    border: 1px solid rgba(100, 116, 139, .22);
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+    .pdfItem {
+        background: #0f172a;
+        border-color: rgba(148, 163, 184, .22);
+    }
+}
+
+.pdfFrame {
+    width: 100%;
+    height: 520px;
+    border: none;
+    display: block;
+    background: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+    .pdfFrame {
+        background: #0f172a;
+    }
+}
+
+.pdfCaption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-top: 1px solid rgba(100, 116, 139, .18);
+}
+
+@media (prefers-color-scheme: dark) {
+    .pdfCaption {
+        border-top-color: rgba(148, 163, 184, .22);
+    }
+}
+
+.pdfName {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ===== README container ===== */
+.readme {
+    /* keep github-markdown-light but place it on a themed card */
+    background: #fff;
+    color: #0f172a;
+    padding: 16px 18px;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    overflow-x: auto;
+}
+
+.readme :global(a) {
+    color: #1d4ed8;
+}
+
+@media (prefers-color-scheme: dark) {
+    .readme {
+        background: #0f172a;
+        color: #e2e8f0;
+        border-color: rgba(148, 163, 184, .22);
+    }
+
+    .readme :global(a) {
+        color: #93c5fd;
+    }
+
+    /* code blocks readable on dark */
+    .readme :global(code),
+    .readme :global(pre) {
+        background: rgba(148, 163, 184, .14);
+        color: #e5e7eb;
+    }
+}
+
+/* Placeholder when no README */
+.readmePlaceholder {
+    padding: 12px 14px;
+    border: 1px dashed rgba(100, 116, 139, .35);
+    border-radius: 12px;
+    color: #64748b;
+}
+
+@media (prefers-color-scheme: dark) {
+    .readmePlaceholder {
+        border-color: rgba(148, 163, 184, .35);
+        color: #94a3b8;
+    }
+}
+
+/* ===== Footer actions ===== */
+.footerActions {
+    margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
