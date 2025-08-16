@@ -50,6 +50,14 @@
     border-radius: 9999px;
 }
 
+.titleLink {
+    text-decoration: none;
+}
+
+.titleLink:hover {
+    text-decoration: underline;
+}
+
 /* ===== Descriptions styling ===== */
 .desc :global(.ant-descriptions-bordered) {
     border-radius: 12px;
@@ -66,29 +74,7 @@
     }
 }
 
-/* ===== Metrics chips ===== */
-.metrics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.metricChip {
-    font-size: 12px;
-    padding: 4px 8px;
-    border-radius: 9999px;
-    background: rgba(99, 102, 241, .1);
-    border: 1px solid rgba(99, 102, 241, .18);
-}
-
-@media (prefers-color-scheme: dark) {
-    .metricChip {
-        background: rgba(99, 102, 241, .18);
-        border-color: rgba(99, 102, 241, .28);
-    }
-}
-
-/* ===== Table wrapper (avoid horizontal scroll by default) ===== */
+/* ===== Table wrapper ===== */
 .tableWrap {
     overflow-x: auto;
 }
@@ -166,7 +152,6 @@
 
 /* ===== README container ===== */
 .readme {
-    /* keep github-markdown-light but place it on a themed card */
     background: #fff;
     color: #0f172a;
     padding: 16px 18px;
@@ -190,7 +175,6 @@
         color: #93c5fd;
     }
 
-    /* code blocks readable on dark */
     .readme :global(code),
     .readme :global(pre) {
         background: rgba(148, 163, 184, .14);
@@ -211,12 +195,4 @@
         border-color: rgba(148, 163, 184, .35);
         color: #94a3b8;
     }
-}
-
-/* ===== Footer actions ===== */
-.footerActions {
-    margin-top: 16px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
 }

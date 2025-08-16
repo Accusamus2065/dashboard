@@ -12,10 +12,11 @@ import {
     Card,
     Space
 } from 'antd';
-import {ArrowLeftOutlined, EditOutlined, FilePdfOutlined} from '@ant-design/icons';
+import {ArrowLeftOutlined, FilePdfOutlined, MailOutlined} from '@ant-design/icons';
 import {useParams, useNavigate} from 'react-router-dom';
 import api from '../services/api';
 import {useAuth} from '../contexts/AuthContext';
+import {LICENSES} from '../constants/constant';
 
 // Markdown renderer and plugins
 import ReactMarkdown from 'react-markdown';
@@ -50,7 +51,7 @@ export default function ModelDetailPage() {
     const {id} = useParams();
     const navigate = useNavigate();
     const {hasRole} = useAuth();
-    const canEdit = hasRole(['uploader', 'admin']);
+    const canEdit = hasRole(['uploader', 'admin']); // not rendered currently
 
     const [model, setModel] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -85,7 +86,7 @@ export default function ModelDetailPage() {
         loadReadme();
     }, [model?.readme_uri]);
 
-    // Load ALL compliance docs, but View 仅展示 approved
+    // Load ALL compliance docs
     useEffect(() => {
         const loadCompliance = async () => {
             try {
@@ -103,6 +104,38 @@ export default function ModelDetailPage() {
         () => approvedDocs.filter(d => /\.pdf(\?|$)/i.test(d.uri || '')),
         [approvedDocs]
     );
+
+    // License full name (prefer label from LICENSES; fallback to raw)
+    const licenseFull = useMemo(() => {
+        const raw = model?.license;
+        if (!raw) return null;
+        const entry = (LICENSES || []).find(x => (typeof x === 'string' ? x === raw : x?.value === raw));
+        if (!entry) return raw;
+        if (typeof entry === 'string') return entry;
+        return entry.label || entry.value || raw;
+    }, [model?.license]);
+
+    // Owner contact parsing: "Name, Email"
+    const ownerParsed = useMemo(() => {
+        const oc = model?.owner_contact;
+        if (!oc || typeof oc !== 'string') return {raw: oc};
+        const parts = oc.split(',').map(s => s.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+            return {name: parts[0], email: parts[1]};
+        }
+        return {raw: oc};
+    }, [model?.owner_contact]);
+
+    // Metrics items (as table cells)
+    const metricCells = useMemo(() => {
+        if (!model) return [];
+        const arr = [];
+        if (model.baseline_accuracy != null) arr.push({label: 'Accuracy', value: model.baseline_accuracy});
+        if (model.baseline_f1 != null) arr.push({label: 'F1 Score', value: model.baseline_f1});
+        if (model.baseline_auc != null) arr.push({label: 'Area Under the Curve', value: model.baseline_auc});
+        if (model.baseline_latency_ms != null) arr.push({label: 'Latency', value: `${model.baseline_latency_ms} ms`});
+        return arr;
+    }, [model]);
 
     const docColumns = [
         {title: 'ID', dataIndex: 'id', key: 'id', width: 70},
@@ -139,142 +172,137 @@ export default function ModelDetailPage() {
                 <div className={styles.header}>
                     <Button
                         icon={<ArrowLeftOutlined/>}
-                        onClick={() => navigate(-1)}
+                        onClick={() => navigate(`/`)}
                         aria-label="Back"
                     >
                         Back
                     </Button>
 
                     <div className={styles.titleBox}>
-                        <Title level={3} style={{margin: 0}}>
-                            Model #{model.id} — {model.name}
-                        </Title>
-                        {model.version && <Tag className={styles.versionTag}>{model.version}</Tag>}
+                        {model.artifact_uri ? (
+                            <Title level={3} style={{margin: 0}}>
+                                <a
+                                    href={`${BASE}${model.artifact_uri}`}
+                                    download
+                                    className={styles.titleLink}
+                                    title="Download model artifact"
+                                >
+                                    {model.name}
+                                </a>
+                            </Title>
+                        ) : (
+                            <Title level={3} style={{margin: 0}}>{model.name}</Title>
+                        )}
+                        {model.version && <Tag className={styles.versionTag} style={{
+                            position: 'relative', top: -2
+                        }}>{model.version}</Tag>}
                     </div>
                 </div>
 
-                <Divider style={{margin: '10px 0 16px'}}/>
+                <Divider style={{margin: '12px 0 16px'}}/>
 
-                {/* Summary */}
+                {/* Info table: 4 columns layout; first row are metrics cells (if any) */}
                 <Descriptions
                     bordered
-                    column={1}
+                    column={4}
                     className={styles.desc}
-                    labelStyle={{width: 220}}
+                    labelStyle={{width: 160}}
                 >
-                    <Descriptions.Item label="Brief Description">{model.description}</Descriptions.Item>
-                    <Descriptions.Item label="Input Schema">{model.input_schema}</Descriptions.Item>
-                    <Descriptions.Item label="Risk Level">
-                        <Tag
-                            color={model.risk_level === 'high' ? 'red' : model.risk_level === 'medium' ? 'orange' : 'green'}>
-                            {model.risk_level}
-                        </Tag>
-                    </Descriptions.Item>
-                    <Descriptions.Item label="Artifact">
-                        <a href={`${BASE}${model.artifact_uri}`} download>Download</a>
+                    {/* —— First row: metrics (appear in order, only those present) —— */}
+                    {metricCells.map((m, idx) => (
+                        <Descriptions.Item key={`metric-${idx}`} label={m.label}>
+                            {m.value}
+                        </Descriptions.Item>
+                    ))}
+
+                    <Descriptions.Item label="Input Schema" span={2}>
+                        {model.input_schema || <Text type="secondary">—</Text>}
                     </Descriptions.Item>
 
-                    {(model.baseline_latency_ms != null ||
-                        model.baseline_accuracy != null ||
-                        model.baseline_f1 != null ||
-                        model.baseline_auc != null) && (
-                        <Descriptions.Item label="Baseline Metrics">
-                            <div className={styles.metrics}>
-                                {model.baseline_accuracy != null && (
-                                    <span className={styles.metricChip}>Acc: {model.baseline_accuracy}</span>
-                                )}
-                                {model.baseline_f1 != null && (
-                                    <span className={styles.metricChip}>F1: {model.baseline_f1}</span>
-                                )}
-                                {model.baseline_auc != null && (
-                                    <span className={styles.metricChip}>AUC: {model.baseline_auc}</span>
-                                )}
-                                {model.baseline_latency_ms != null && (
-                                    <span className={styles.metricChip}>Lat: {model.baseline_latency_ms} ms</span>
-                                )}
-                            </div>
-                        </Descriptions.Item>
-                    )}
+                    <Descriptions.Item label="Risk Level" span={2}>
+                        {model.risk_level
+                            ? <Tag
+                                color={model.risk_level === 'high' ? 'red' : model.risk_level === 'medium' ? 'orange' : 'green'}>
+                                {model.risk_level}
+                            </Tag>
+                            : <Text type="secondary">—</Text>}
+                    </Descriptions.Item>
+
+                    {/* Owner Contact first, then Input Schema (swap as requested) */}
+                    <Descriptions.Item label="Owner Contact" span={2}>
+                        {ownerParsed?.email
+                            ? (
+                                <Space size={8}>
+                                    <span>{ownerParsed.name}</span>
+                                    <a href={`mailto:${ownerParsed.email}`}
+                                       style={{marginLeft: 5}}><MailOutlined/> {ownerParsed.email}</a>
+                                </Space>
+                            )
+                            : (ownerParsed?.raw || <Text type="secondary">—</Text>)
+                        }
+                    </Descriptions.Item>
+
+                    <Descriptions.Item label="License" span={2}>
+                        {licenseFull ? licenseFull : <Text type="secondary">—</Text>}
+                    </Descriptions.Item>
+
 
                     {Array.isArray(model.business_tags) && model.business_tags.length > 0 && (
-                        <Descriptions.Item label="Business Tags">
+                        <Descriptions.Item label="Business Tags" span={4}>
                             <Space wrap size={[6, 6]}>
                                 {model.business_tags.map((t, i) => <Tag key={i}>{t}</Tag>)}
                             </Space>
                         </Descriptions.Item>
                     )}
 
-                    {model.owner_contact && (
-                        <Descriptions.Item label="Owner Contact">{model.owner_contact}</Descriptions.Item>
-                    )}
-
-                    {model.license && (
-                        <Descriptions.Item label="License">{model.license}</Descriptions.Item>
-                    )}
-
-                    {Array.isArray(model.training_data_uris) && model.training_data_uris.length > 0 && (
-                        <Descriptions.Item label="Training Data">
-                            {model.training_data_uris.map((u, i) => (
-                                <div key={i}>
-                                    <a href={`${BASE}${u}`} target="_blank" rel="noreferrer">
-                                        {u.split('/').pop()}
-                                    </a>
-                                </div>
-                            ))}
-                        </Descriptions.Item>
-                    )}
-
-                    {Array.isArray(model.validation_data_uris) && model.validation_data_uris.length > 0 && (
-                        <Descriptions.Item label="Validation Data">
-                            {model.validation_data_uris.map((u, i) => (
-                                <div key={i}>
-                                    <a href={`${BASE}${u}`} target="_blank" rel="noreferrer">
-                                        {u.split('/').pop()}
-                                    </a>
-                                </div>
-                            ))}
-                        </Descriptions.Item>
-                    )}
+                    {/* Brief Description at the bottom, full width */}
+                    <Descriptions.Item label="Brief Description" span={4}>
+                        {model.description || <Text type="secondary">—</Text>}
+                    </Descriptions.Item>
                 </Descriptions>
 
-                <Divider/>
-
-                {/* Approved Compliance Docs (table + PDF previews) */}
-                <Title level={4} style={{marginBottom: 12}}>Approved Compliance Documents</Title>
-                <div className={styles.tableWrap}>
-                    <Table
-                        rowKey="id"
-                        dataSource={approvedDocs}
-                        columns={docColumns}
-                        pagination={{pageSize: 10}}
-                        size="middle"
-                    />
-                </div>
-
-                {approvedPdfDocs.length > 0 && (
+                {/* Approved Compliance Docs (only render if there is any) */}
+                {approvedDocs.length > 0 && (
                     <>
                         <Divider/>
-                        <div className={styles.pdfHeader}>
-                            <Title level={5} style={{margin: 0}}>
-                                <FilePdfOutlined/> PDF Preview
-                            </Title>
-                            <Text type="secondary">Approved PDFs are rendered inline below.</Text>
+
+                        <Title level={4} style={{marginBottom: 12}}>Approved Compliance Documents</Title>
+                        <div className={styles.tableWrap}>
+                            <Table
+                                rowKey="id"
+                                dataSource={approvedDocs}
+                                columns={docColumns}
+                                pagination={false}
+                                size="middle"
+                            />
                         </div>
-                        <div className={styles.pdfGrid}>
-                            {approvedPdfDocs.map((d) => (
-                                <div key={d.id} className={styles.pdfItem}>
-                                    <iframe
-                                        title={`pdf-${d.id}`}
-                                        src={`${BASE}${d.uri}`}
-                                        className={styles.pdfFrame}
-                                    />
-                                    <div className={styles.pdfCaption}>
-                                        <span className={styles.pdfName}>{(d.uri || '').split('/').pop()}</span>
-                                        <Tag size="small">{d.type}</Tag>
-                                    </div>
+
+                        {approvedPdfDocs.length > 0 && (
+                            <>
+                                <Divider/>
+                                <div className={styles.pdfHeader}>
+                                    <Title level={5} style={{margin: 0}}>
+                                        <FilePdfOutlined/> PDF Preview
+                                    </Title>
+                                    <Text type="secondary">Approved PDFs are rendered inline below.</Text>
                                 </div>
-                            ))}
-                        </div>
+                                <div className={styles.pdfGrid}>
+                                    {approvedPdfDocs.map((d) => (
+                                        <div key={d.id} className={styles.pdfItem}>
+                                            <iframe
+                                                title={`pdf-${d.id}`}
+                                                src={`${BASE}${d.uri}`}
+                                                className={styles.pdfFrame}
+                                            />
+                                            <div className={styles.pdfCaption}>
+                                                <span className={styles.pdfName}>{(d.uri || '').split('/').pop()}</span>
+                                                <Tag size="small">{d.type}</Tag>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </>
                 )}
 
@@ -299,14 +327,6 @@ export default function ModelDetailPage() {
                 ) : (
                     <div className={styles.readmePlaceholder}>No README uploaded.</div>
                 )}
-
-                <div className={styles.footerActions}>
-                    {canEdit && (
-                        <Button type="primary" icon={<EditOutlined/>} onClick={() => navigate(`/edit/${id}`)}>
-                            Edit
-                        </Button>
-                    )}
-                </div>
             </Card>
         </div>
     );
