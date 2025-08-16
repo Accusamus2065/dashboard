@@ -79,13 +79,13 @@
 
 .twoCol {
     display: grid;
-    grid-template-columns:1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 12px 16px;
 }
 
 @media (max-width: 768px) {
     .twoCol {
-        grid-template-columns:1fr;
+        grid-template-columns: 1fr;
     }
 }
 
@@ -172,7 +172,7 @@
 /* Metrics row */
 .metricsGrid {
     display: grid;
-    grid-template-columns:repeat(4, minmax(150px, 1fr));
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
     gap: 12px 16px;
     align-items: center;
     justify-items: center;
@@ -193,7 +193,7 @@
     width: 160px;
 }
 
-/* Actions */
+/* Actions (unused old bar) */
 .actions {
     display: flex;
     justify-content: flex-end;
@@ -239,7 +239,7 @@
 
 .docItem {
     display: grid;
-    grid-template-columns:1fr 220px 40px;
+    grid-template-columns: 1fr 220px 40px;
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
@@ -285,25 +285,29 @@
     color: #dc2626;
 }
 
-.compActions {
+/* Wide table area (detached) */
+.wideSection {
+    width: min(1400px, 96vw);
+    margin: 14px auto 0;
+}
+
+.tableWrapWide {
+    border: 1px solid rgba(100, 116, 139, .22);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .55);
+    overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+    .tableWrapWide {
+        background: rgba(2, 6, 23, .35);
+        border-color: rgba(148, 163, 184, .22);
+    }
+}
+
+/* Bottom update bar */
+.updateBar {
     display: flex;
     justify-content: flex-end;
-    margin-top: 10px;
-}
-
-.tableWrap {
-    margin-top: 12px;
-}
-
-/* Review modal */
-.reviewRow {
-    display: grid;
-    grid-template-columns:120px 1fr;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-}
-
-.reviewLabel {
-    color: #64748b;
+    margin-top: 14px;
 }

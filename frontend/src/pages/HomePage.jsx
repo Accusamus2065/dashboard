@@ -40,7 +40,7 @@ export default function HomePage() {
     const navigate = useNavigate();
 
     const canUpload = hasRole(['uploader', 'admin']);
-    const canEdit = hasRole(['uploader', 'admin']);
+    const canEdit = hasRole(['uploader', 'admin', 'auditor']);
     const canDelete = hasRole('admin');
 
     // data
