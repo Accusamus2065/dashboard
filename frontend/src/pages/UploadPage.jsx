@@ -282,7 +282,7 @@ export default function UploadPage() {
                                 id="description"
                                 placeholder="Describe the model's purpose and functionality"
                                 height={80}
-                                autoSize={{minRows: 3, maxRows: 6}}
+                                autoSize={{minRows: 3, maxRows: 10}}
                             />
                         </Form.Item>
                     </div>
