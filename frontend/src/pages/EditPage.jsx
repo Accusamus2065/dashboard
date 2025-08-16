@@ -111,18 +111,23 @@ export default function EditPage() {
 
     // 审核表格列
     const columns = [
-        {title: 'ID', dataIndex: 'id', key: 'id', width: 70},
-        {title: 'Type', dataIndex: 'type', key: 'type', render: t => <Tag>{t}</Tag>, width: 110},
+        {title: 'ID', dataIndex: 'id', key: 'id', width: 48, align: 'center', fixed: 'left'},
+        {title: 'Type', dataIndex: 'type', key: 'type', render: t => <Tag>{t}</Tag>},
         {
-            title: 'File', dataIndex: 'uri', key: 'uri',
+            title: 'File',
+            dataIndex: 'uri',
+            key: 'uri',
+            ellipsis: true,
             render: (u) => (
                 <a href={`http://localhost:3000${u}`} target="_blank" rel="noreferrer">
                     {u.split('/').pop()}
                 </a>
-            )
+            ),
         },
         {
-            title: 'Status', dataIndex: 'status', key: 'status', width: 170,
+            title: 'Status',
+            dataIndex: 'status',
+            key: 'status',
             render: (s, r) => {
                 const queued = reviewDecisions[r.id];
                 const colorNow = s === 'approved' ? 'green' : s === 'rejected' ? 'red' : 'gold';
@@ -132,12 +137,20 @@ export default function EditPage() {
                         {queued && <Tag color={queued === 'approved' ? 'blue' : 'volcano'}>queued: {queued}</Tag>}
                     </Space>
                 );
-            }
+            },
         },
-        {title: 'Uploader', key: 'uploader', width: 180, render: (_, r) => r.uploader?.email || r.uploaded_by},
-        {title: 'Reviewer', key: 'reviewer', width: 180, render: (_, r) => r.reviewer?.email || '—'},
         {
-            title: 'Actions', key: 'actions', width: 360,
+            title: 'Uploader',
+            key: 'uploader',
+            ellipsis: true,
+            render: (_, r) => r.uploader?.email || r.uploaded_by
+        },
+        {title: 'Reviewer', key: 'reviewer', ellipsis: true, render: (_, r) => r.reviewer?.email || '—'},
+        {
+            title: 'Actions',
+            key: 'actions',
+            fixed: 'right',
+            align: 'center',
             render: (_t, r) => {
                 const canDelete = canDeleteAny || r.uploaded_by === user?.id;
                 const queued = reviewDecisions[r.id];
@@ -145,18 +158,21 @@ export default function EditPage() {
                     <Space size={8} wrap>
                         {canReview && r.status === 'pending' && (
                             <>
-                                <Button
-                                    icon={<CheckCircleOutlined/>}
-                                    onClick={() => setReviewDecisions(d => ({...d, [r.id]: 'approved'}))}
-                                >
-                                    Queue Approve
-                                </Button>
-                                <Button
-                                    danger icon={<CloseCircleOutlined/>}
-                                    onClick={() => setReviewDecisions(d => ({...d, [r.id]: 'rejected'}))}
-                                >
-                                    Queue Reject
-                                </Button>
+                                <Tooltip title="Approve">
+                                    <Button
+                                        type="text"
+                                        icon={<CheckCircleOutlined style={{color: 'green'}}/>}
+                                        onClick={() => setReviewDecisions(d => ({...d, [r.id]: 'approved'}))}
+                                    />
+                                </Tooltip>
+                                <Tooltip title="Reject">
+                                    <Button
+                                        type="text"
+                                        danger
+                                        icon={<CloseCircleOutlined style={{color: 'red'}}/>}
+                                        onClick={() => setReviewDecisions(d => ({...d, [r.id]: 'rejected'}))}
+                                    />
+                                </Tooltip>
                             </>
                         )}
                         {queued && (
@@ -172,25 +188,27 @@ export default function EditPage() {
                             </Button>
                         )}
                         {canDelete && (
-                            <Popconfirm
-                                title="Delete this document?"
-                                onConfirm={async () => {
-                                    try {
-                                        await api.delete(`/compliance-docs/${r.id}`);
-                                        message.success('Deleted');
-                                        await loadCompliance();
-                                        setReviewDecisions(d => {
-                                            const nd = {...d};
-                                            delete nd[r.id];
-                                            return nd;
-                                        });
-                                    } catch (e) {
-                                        message.error(e.response?.data?.error || 'Delete failed');
-                                    }
-                                }}
-                            >
-                                <Button danger icon={<DeleteOutlined/>}>Delete</Button>
-                            </Popconfirm>
+                            <Tooltip title="Delete">
+                                <Popconfirm
+                                    title="Delete this document?"
+                                    onConfirm={async () => {
+                                        try {
+                                            await api.delete(`/compliance-docs/${r.id}`);
+                                            message.success('Deleted');
+                                            await loadCompliance();
+                                            setReviewDecisions(d => {
+                                                const nd = {...d};
+                                                delete nd[r.id];
+                                                return nd;
+                                            });
+                                        } catch (e) {
+                                            message.error(e.response?.data?.error || 'Delete failed');
+                                        }
+                                    }}
+                                >
+                                    <Button type="text" danger icon={<DeleteOutlined/>}/>
+                                </Popconfirm>
+                            </Tooltip>
                         )}
                     </Space>
                 );
@@ -518,14 +536,17 @@ export default function EditPage() {
                 {showComplianceTable && (
                     <>
                         <Divider/>
-                        <div className={styles.wideSection}>
-                            <div className={styles.tableWrapWide}>
+                        {/* full-bleed table: 宽度脱离卡片内边距，横向可滚 */}
+                        <div className={styles.fullBleed}>
+                            <div className={styles.tableScroll}>
                                 <Table
                                     rowKey="id"
                                     dataSource={docs}
                                     columns={columns}
                                     pagination={false}
-                                    size="middle"
+                                    size="small"
+                                    className={styles.compTable}
+                                    scroll={{x: 'max-content'}}   // 依据列内容自适应，超出则横向滚动
                                 />
                             </div>
                         </div>

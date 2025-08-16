@@ -169,3 +169,47 @@
     gap: 8px;
     margin-top: 8px;
 }
+
+/* 让内部内容“脱离”卡片内边距，横向占满整个视口宽度 */
+.fullBleed {
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    width: 100vw;
+}
+
+/* 内层滚动容器，避免表格高度过窄时出现页面级滚动条 */
+.tableScroll {
+    overflow-x: auto;
+    padding: 0 16px; /* 给两侧留点呼吸 */
+}
+
+/* 表格紧凑化 + 不换行，省空间 */
+.compTable :global(.ant-table) {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.compTable :global(.ant-table-thead > tr > th),
+.compTable :global(.ant-table-tbody > tr > td) {
+    white-space: nowrap; /* 不换行 */
+    padding: 8px 10px; /* 更紧凑的单元格 */
+}
+
+/* 使 ellipsis 生效时展示省略号 */
+.compTable :global(.ant-table-cell-ellipsis) {
+    max-width: 100%;
+}
+
+/* 深色模式下边框微调（可选） */
+@media (prefers-color-scheme: dark) {
+    .compTable :global(.ant-table-thead > tr > th) {
+        border-color: rgba(148, 163, 184, .25);
+    }
+
+    .compTable :global(.ant-table-tbody > tr > td) {
+        border-color: rgba(148, 163, 184, .18);
+    }
+}
