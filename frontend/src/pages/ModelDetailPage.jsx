@@ -195,7 +195,7 @@ export default function ModelDetailPage() {
                         )}
                         {model.version && <Tag className={styles.versionTag} style={{
                             position: 'relative', top: -2
-                        }}>{model.version}</Tag>}
+                        }}>Ver. {model.version}</Tag>}
                     </div>
                 </div>
 

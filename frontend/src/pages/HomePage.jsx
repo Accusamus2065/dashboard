@@ -290,7 +290,7 @@ export default function HomePage() {
             render: (l) => l ? <Tag>{l}</Tag> : <Text type="secondary">—</Text>,
         },
         {
-            title: 'Business Tags',
+            title: 'Tags',
             dataIndex: 'business_tags',
             render: (_, m) => {
                 const tags = Array.isArray(m?.business_tags) ? m.business_tags : [];
