@@ -64,6 +64,20 @@ export default function EditPage() {
         note: ''
     });
 
+    const [tagOptions, setTagOptions] = useState([]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const res = await api.get('/business-tags');
+                const opts = (res.data?.items || []).map(t => ({label: t, value: t}));
+                setTagOptions(opts);
+            } catch {
+                // ignore
+            }
+        })();
+    }, []);
+
     // 用于判断 Basics + Baseline Metrics 是否真的变更
     const TRACKED_FIELDS = [
         'name', 'version', 'description', 'input_schema', 'risk_level',
@@ -558,8 +572,19 @@ export default function EditPage() {
 
                                 <Form.Item name="business_tags" label="Business Tags" style={{gridColumn: '1 / -1'}}
                                            className={styles.tags}>
-                                    <Select id="business_tags" mode="tags" tokenSeparators={[',']}
-                                            placeholder="Type tag then Enter" maxTagCount="responsive"/>
+                                    <Select
+                                        id="business_tags"
+                                        mode="tags"
+                                        tokenSeparators={[',']}
+                                        placeholder="Type to search or create; click to see all"
+                                        maxTagCount="responsive"
+                                        options={tagOptions}             // ✅ 展示全站已有 tags
+                                        showSearch
+                                        optionFilterProp="label"
+                                        filterOption={(input, opt) =>
+                                            (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                        }
+                                    />
                                 </Form.Item>
 
                                 <Form.Item name="description" label="Description" rules={[{required: true}]}

@@ -96,10 +96,8 @@ export default function HomePage() {
     useEffect(() => {
         (async () => {
             try {
-                const allRes = await api.get('/models');
-                const setTags = new Set();
-                (allRes.data || []).forEach(m => (m.business_tags || []).forEach(t => setTags.add(t)));
-                setTagOptions(Array.from(setTags).sort());
+                const res = await api.get('/business-tags');
+                setTagOptions(res.data?.items || []);
             } catch {
                 // ignore
             }
@@ -316,6 +314,7 @@ export default function HomePage() {
         },
         {
             title: 'Metrics',
+            width: 380,
             dataIndex: 'metrics',
             render: (_, m) => metricChips(m),
         },

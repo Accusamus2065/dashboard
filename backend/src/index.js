@@ -754,6 +754,29 @@ app.get('/compliance/requirements', authRequired, (_req, res) => {
     res.json({REQUIRED_DOCS, COMPLIANCE_TYPES, REVIEW_STATUSES});
 });
 
+// ---- Business tags across the site ----
+app.get('/business-tags', authRequired, async (_req, res, next) => {
+    try {
+        const rows = await Model.findAll({attributes: ['business_tags']});
+        const set = new Set();
+        for (const r of rows) {
+            const arr = Array.isArray(r.business_tags) ? r.business_tags : [];
+            for (const t of arr) {
+                if (typeof t === 'string') {
+                    const s = t.trim();
+                    if (s) set.add(s);
+                }
+            }
+        }
+        const items = Array.from(set).sort((a, b) =>
+            a.localeCompare(b, undefined, {sensitivity: 'base'})
+        );
+        res.json({items});
+    } catch (err) {
+        next(err);
+    }
+});
+
 /** -------- 更新历史路由（支持多选类型） -------- **/
 app.get('/models/:id/updates', authRequired, async (req, res, next) => {
     try {

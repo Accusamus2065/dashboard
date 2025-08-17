@@ -45,6 +45,21 @@ export default function UploadPage() {
     const [complianceTypes, setComplianceTypes] = useState({});
     const [guideOpen, setGuideOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    // components state 顶部附近加上：
+    const [tagOptions, setTagOptions] = useState([]);
+
+// 在组件里添加一次性加载（放在组件体内，与其他 useMemo/useState 同级）：
+    React.useEffect(() => {
+        (async () => {
+            try {
+                const res = await api.get('/business-tags');
+                const opts = (res.data?.items || []).map(t => ({label: t, value: t}));
+                setTagOptions(opts);
+            } catch {
+                // 静默失败：保持可自由输入
+            }
+        })();
+    }, []);
 
     // LICENSE options
     const licenseOptions = useMemo(
@@ -266,9 +281,15 @@ export default function UploadPage() {
                                 id="business_tags"
                                 mode="tags"
                                 tokenSeparators={[',']}
-                                placeholder="Type tag and press Enter or comma"
+                                placeholder="Type to search or create; click to see all"
                                 style={{width: '100%'}}
                                 maxTagCount="responsive"
+                                options={tagOptions}             // ✅ 展示全站已有 tags
+                                showSearch
+                                optionFilterProp="label"         // ✅ 搜索按 label
+                                filterOption={(input, opt) =>    // ✅ 不区分大小写
+                                    (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                }
                             />
                         </Form.Item>
 
