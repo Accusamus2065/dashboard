@@ -196,3 +196,95 @@
         color: #94a3b8;
     }
 }
+
+/* frontend/src/pages/ModelDetailPage.module.css */
+
+/* 现有样式保持不变 ... 下方仅附新增部分 */
+
+.updateDetail {
+    padding: 8px 4px 2px 4px;
+}
+
+.updateNote {
+    margin-bottom: 6px;
+}
+
+.updateMeta {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.json {
+    margin: 6px 0 0;
+    padding: 8px 10px;
+    background: rgba(148, 163, 184, .12);
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+.updateOld {
+    margin-top: 8px;
+}
+
+.updateHint {
+    margin-left: 8px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .json {
+        background: rgba(148, 163, 184, .16);
+    }
+
+    .updateHint {
+        color: #94a3b8;
+    }
+}
+
+/* existing styles ... */
+
+.updateDetail {
+    padding: 8px 4px 2px 4px;
+}
+
+.updateNote {
+    margin-bottom: 6px;
+}
+
+.updateMeta {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.json {
+    margin: 6px 0 0;
+    padding: 8px 10px;
+    background: rgba(148, 163, 184, .12);
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+.updateOld {
+    margin-top: 8px;
+}
+
+.updateHint {
+    margin-left: 8px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .json {
+        background: rgba(148, 163, 184, .16);
+    }
+
+    .updateHint {
+        color: #94a3b8;
+    }
+}
+
+.readmePdf {
+    height: 800px;
+}

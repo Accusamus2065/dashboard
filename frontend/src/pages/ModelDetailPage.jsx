@@ -10,15 +10,14 @@ import {
     Tag,
     Table,
     Card,
-    Space
+    Space,
 } from 'antd';
-import {ArrowLeftOutlined, FilePdfOutlined, MailOutlined} from '@ant-design/icons';
+import {ArrowLeftOutlined, FilePdfOutlined, MailOutlined, DownloadOutlined} from '@ant-design/icons';
 import {useParams, useNavigate} from 'react-router-dom';
 import api from '../services/api';
 import {useAuth} from '../contexts/AuthContext';
 import {LICENSES} from '../constants/constant';
 
-// Markdown renderer and plugins
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -51,14 +50,14 @@ export default function ModelDetailPage() {
     const {id} = useParams();
     const navigate = useNavigate();
     const {hasRole} = useAuth();
-    const canEdit = hasRole(['uploader', 'admin']); // not rendered currently
+    const canEdit = hasRole(['uploader', 'admin']);
 
     const [model, setModel] = useState(null);
     const [loading, setLoading] = useState(false);
     const [readmeText, setReadmeText] = useState('');
     const [docs, setDocs] = useState([]);
+    const [updates, setUpdates] = useState([]);
 
-    // Load model
     useEffect(() => {
         setLoading(true);
         api.get(`/models/${id}`)
@@ -67,10 +66,13 @@ export default function ModelDetailPage() {
             .finally(() => setLoading(false));
     }, [id]);
 
-    // Load README content
+    // Detect README filetype
+    const isReadmePdf = useMemo(() => !!model?.readme_uri && /\.pdf(\?|$)/i.test(model.readme_uri), [model?.readme_uri]);
+
+    // Load README text only for non-PDF
     useEffect(() => {
         const loadReadme = async () => {
-            if (!model?.readme_uri) {
+            if (!model?.readme_uri || isReadmePdf) {
                 setReadmeText('');
                 return;
             }
@@ -84,9 +86,9 @@ export default function ModelDetailPage() {
             }
         };
         loadReadme();
-    }, [model?.readme_uri]);
+    }, [model?.readme_uri, isReadmePdf]);
 
-    // Load ALL compliance docs
+    // Compliance docs
     useEffect(() => {
         const loadCompliance = async () => {
             try {
@@ -99,13 +101,25 @@ export default function ModelDetailPage() {
         loadCompliance();
     }, [id]);
 
+    // Update history
+    useEffect(() => {
+        const loadUpdates = async () => {
+            try {
+                const res = await api.get(`/models/${id}/updates`);
+                setUpdates(res.data || []);
+            } catch {
+                message.error('Failed to load update history');
+            }
+        };
+        loadUpdates();
+    }, [id]);
+
     const approvedDocs = useMemo(() => (docs || []).filter(d => d.status === 'approved'), [docs]);
     const approvedPdfDocs = useMemo(
         () => approvedDocs.filter(d => /\.pdf(\?|$)/i.test(d.uri || '')),
         [approvedDocs]
     );
 
-    // License full name (prefer label from LICENSES; fallback to raw)
     const licenseFull = useMemo(() => {
         const raw = model?.license;
         if (!raw) return null;
@@ -115,7 +129,6 @@ export default function ModelDetailPage() {
         return entry.label || entry.value || raw;
     }, [model?.license]);
 
-    // Owner contact parsing: "Name, Email"
     const ownerParsed = useMemo(() => {
         const oc = model?.owner_contact;
         if (!oc || typeof oc !== 'string') return {raw: oc};
@@ -126,7 +139,6 @@ export default function ModelDetailPage() {
         return {raw: oc};
     }, [model?.owner_contact]);
 
-    // Metrics items (as table cells)
     const metricCells = useMemo(() => {
         if (!model) return [];
         const arr = [];
@@ -155,6 +167,39 @@ export default function ModelDetailPage() {
             title: 'Reviewed At', dataIndex: 'reviewed_at', key: 'reviewed_at', width: 200,
             render: v => (v ? new Date(v).toLocaleString() : '—')
         }
+    ];
+
+    // Update type tags (English)
+    const typeTag = (t) => {
+        const map = {
+            model: {color: 'geekblue', text: 'Replace model artifact / README'},
+            basic: {color: 'green', text: 'Edit basic information'},
+            compliance_upload: {color: 'purple', text: 'Upload compliance documents'},
+            compliance_review: {color: 'orange', text: 'Review compliance documents'},
+        };
+        const it = map[t] || {color: 'default', text: t};
+        return <Tag color={it.color}>{it.text}</Tag>;
+    };
+
+    const updateColumns = [
+        {title: 'Time', dataIndex: 'created_at', render: v => new Date(v).toLocaleString(), width: 200},
+        {title: 'Actor', dataIndex: ['actor', 'email'], render: (v) => v || '—', width: 220},
+        {title: 'Type', dataIndex: 'update_type', render: typeTag, width: 220},
+        {
+            title: 'Model', render: (_, r) => (
+                <Space size={6}>
+                    <span>{r.name_snapshot || model?.name}</span>
+                    {r.version_snapshot && <Tag>Ver. {r.version_snapshot}</Tag>}
+                </Space>
+            )
+        },
+        {
+            title: 'Old artifact', render: (_, r) => (
+                r.prev_artifact_uri
+                    ? <a href={`${BASE}${r.prev_artifact_uri}`} download><DownloadOutlined/> Download</a>
+                    : <Text type="secondary">—</Text>
+            ), width: 160
+        },
     ];
 
     if (loading || !model) {
@@ -193,22 +238,15 @@ export default function ModelDetailPage() {
                         ) : (
                             <Title level={3} style={{margin: 0}}>{model.name}</Title>
                         )}
-                        {model.version && <Tag className={styles.versionTag} style={{
-                            position: 'relative', top: -2
-                        }}>Ver. {model.version}</Tag>}
+                        {model.version && <Tag className={styles.versionTag}
+                                               style={{position: 'relative', top: -2}}>Ver. {model.version}</Tag>}
                     </div>
                 </div>
 
                 <Divider style={{margin: '12px 0 16px'}}/>
 
-                {/* Info table: 4 columns layout; first row are metrics cells (if any) */}
-                <Descriptions
-                    bordered
-                    column={4}
-                    className={styles.desc}
-                    labelStyle={{width: 160}}
-                >
-                    {/* —— First row: metrics (appear in order, only those present) —— */}
+                {/* Info */}
+                <Descriptions bordered column={4} className={styles.desc} labelStyle={{width: 160}}>
                     {metricCells.map((m, idx) => (
                         <Descriptions.Item key={`metric-${idx}`} label={m.label}>
                             {m.value}
@@ -228,14 +266,14 @@ export default function ModelDetailPage() {
                             : <Text type="secondary">—</Text>}
                     </Descriptions.Item>
 
-                    {/* Owner Contact first, then Input Schema (swap as requested) */}
                     <Descriptions.Item label="Owner Contact" span={2}>
                         {ownerParsed?.email
                             ? (
                                 <Space size={8}>
                                     <span>{ownerParsed.name}</span>
-                                    <a href={`mailto:${ownerParsed.email}`}
-                                       style={{marginLeft: 5}}><MailOutlined/> {ownerParsed.email}</a>
+                                    <a href={`mailto:${ownerParsed.email}`} style={{marginLeft: 5}}>
+                                        <MailOutlined/> {ownerParsed.email}
+                                    </a>
                                 </Space>
                             )
                             : (ownerParsed?.raw || <Text type="secondary">—</Text>)
@@ -246,7 +284,6 @@ export default function ModelDetailPage() {
                         {licenseFull ? licenseFull : <Text type="secondary">—</Text>}
                     </Descriptions.Item>
 
-
                     {Array.isArray(model.business_tags) && model.business_tags.length > 0 && (
                         <Descriptions.Item label="Business Tags" span={4}>
                             <Space wrap size={[6, 6]}>
@@ -255,20 +292,17 @@ export default function ModelDetailPage() {
                         </Descriptions.Item>
                     )}
 
-                    {/* Brief Description at the bottom, full width */}
                     <Descriptions.Item label="Brief Description" span={4}>
                         {model.description
                             ? <div style={{whiteSpace: 'pre-line'}}>{model.description}</div>
                             : <Text type="secondary">—</Text>}
                     </Descriptions.Item>
-
                 </Descriptions>
 
-                {/* Approved Compliance Docs (only render if there is any) */}
+                {/* Approved Compliance Docs */}
                 {approvedDocs.length > 0 && (
                     <>
                         <Divider/>
-
                         <Title level={4} style={{marginBottom: 12}}>Approved Compliance Documents</Title>
                         <div className={styles.tableWrap}>
                             <Table
@@ -292,11 +326,8 @@ export default function ModelDetailPage() {
                                 <div className={styles.pdfGrid}>
                                     {approvedPdfDocs.map((d) => (
                                         <div key={d.id} className={styles.pdfItem}>
-                                            <iframe
-                                                title={`pdf-${d.id}`}
-                                                src={`${BASE}${d.uri}`}
-                                                className={styles.pdfFrame}
-                                            />
+                                            <iframe title={`pdf-${d.id}`} src={`${BASE}${d.uri}`}
+                                                    className={styles.pdfFrame}/>
                                             <div className={styles.pdfCaption}>
                                                 <span className={styles.pdfName}>{(d.uri || '').split('/').pop()}</span>
                                                 <Tag size="small">{d.type}</Tag>
@@ -309,26 +340,84 @@ export default function ModelDetailPage() {
                     </>
                 )}
 
-                <Divider/>
-
                 {/* README */}
+                <Divider/>
                 <Title level={4} style={{marginBottom: 12}}>README</Title>
                 {model.readme_uri ? (
-                    <article className={`${styles.readme} markdown-body`}>
-                        <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
-                            components={{
-                                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer"/>,
-                                img: ({node, ...props}) => <img {...props} loading="lazy"
-                                                                style={{maxWidth: '100%', height: 'auto'}} alt="img"/>
-                            }}
-                        >
-                            {readmeText}
-                        </ReactMarkdown>
-                    </article>
+                    isReadmePdf ? (
+                        <div className={styles.pdfItem} style={{marginTop: 0}}>
+                            <iframe
+                                title="readme-pdf"
+                                src={`${BASE}${model.readme_uri}`}
+                                className={`${styles.pdfFrame} ${styles.readmePdf}`}
+                            />
+                            <div className={styles.pdfCaption}>
+                                <span className={styles.pdfName}>{(model.readme_uri || '').split('/').pop()}</span>
+                                <Tag size="small">PDF</Tag>
+                            </div>
+                        </div>
+                    ) : (
+                        <article className={`${styles.readme} markdown-body`}>
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+                                components={{
+                                    a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer"/>,
+                                    img: ({node, ...props}) => <img {...props} loading="lazy"
+                                                                    style={{maxWidth: '100%', height: 'auto'}}
+                                                                    alt="img"/>
+                                }}
+                            >
+                                {readmeText}
+                            </ReactMarkdown>
+                        </article>
+                    )
                 ) : (
                     <div className={styles.readmePlaceholder}>No README uploaded.</div>
+                )}
+
+                {/* Update History at very bottom; hide when empty */}
+                {updates.length > 0 && (
+                    <>
+                        <Divider/>
+                        <Title level={4} style={{marginBottom: 10}}>Update History</Title>
+                        <div className={styles.tableWrap}>
+                            <Table
+                                rowKey="id"
+                                dataSource={updates}
+                                columns={updateColumns}
+                                pagination={false}
+                                expandable={{
+                                    expandedRowRender: (r) => (
+                                        <div className={styles.updateDetail}>
+                                            {r.note && <div className={styles.updateNote}><b>Note:</b> {r.note}</div>}
+                                            <div className={styles.updateMeta}>
+                                                <b>Details:</b>{' '}
+                                                {r.meta?.changed_fields?.length
+                                                    ? <>Changed
+                                                        fields: <code>{r.meta.changed_fields.join(', ')}</code></>
+                                                    : r.meta
+                                                        ? <pre
+                                                            className={styles.json}>{JSON.stringify(r.meta, null, 2)}</pre>
+                                                        : <span>No additional metadata.</span>}
+                                            </div>
+                                            {r.prev_artifact_uri && (
+                                                <div className={styles.updateOld}>
+                                                    <DownloadOutlined/> Previous artifact:&nbsp;
+                                                    <a href={`${BASE}${r.prev_artifact_uri}`} download>
+                                                        {(r.prev_artifact_uri || '').split('/').pop()}
+                                                    </a>
+                                                    <span className={styles.updateHint}>
+                                                        (You can download the old model; legacy metadata pages are not preserved.)
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                }}
+                            />
+                        </div>
+                    </>
                 )}
             </Card>
         </div>
