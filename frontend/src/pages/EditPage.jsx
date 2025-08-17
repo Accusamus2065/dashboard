@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useState, useRef, useLayoutEffect} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import {
     Form, Input, Button, Select, Upload, message, Typography, Space, InputNumber,
@@ -19,6 +19,9 @@ const {Option} = Select;
 const {Dragger} = Upload;
 
 export default function EditPage() {
+    const wrapperRef = useRef(null);
+    const cardRef = useRef(null);
+    const [centered, setCentered] = useState(false);
     const [form] = Form.useForm();
     const navigate = useNavigate();
     const {id} = useParams();
@@ -36,6 +39,17 @@ export default function EditPage() {
             navigate('/');
         }
     }, [isViewer, navigate]);
+    useLayoutEffect(() => {
+        const checkCenter = () => {
+            const cardH = cardRef.current?.offsetHeight ?? 0;
+            const padY = 48; // wrapper 上下内边距总和（与你的 .wrapper padding 对齐，24*2）
+            const needCenter = cardH + padY < window.innerHeight;
+            setCentered(needCenter);
+        };
+        checkCenter();
+        window.addEventListener('resize', checkCenter);
+        return () => window.removeEventListener('resize', checkCenter);
+    }, []);
 
     const canReview = isAuditor || isAdmin;
     const canDeleteAny = isAdmin;
@@ -499,8 +513,8 @@ export default function EditPage() {
     };
 
     return (
-        <div className={styles.wrapper}>
-            <Card className={styles.card} bordered={false}>
+        <div ref={wrapperRef} className={`${styles.wrapper} ${centered ? styles.centered : ''}`}>
+            <Card ref={cardRef} className={styles.card} bordered={false}>
                 {/* Header */}
                 <div className={styles.topbar}>
                     <Button icon={<ArrowLeftOutlined/>} onClick={() => navigate(-1)} aria-label="Back">Back</Button>

@@ -362,3 +362,6 @@
     }
 }
 
+.centered {
+    place-items: center center;
+}
