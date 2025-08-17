@@ -30,7 +30,6 @@ export default function EditPage() {
     const isUploader = hasRole('uploader');
     const isAdmin = hasRole('admin');
 
-    // viewer 不能进入编辑页
     useEffect(() => {
         if (isViewer) {
             message.warning('Viewers cannot access the edit page.');
@@ -38,26 +37,30 @@ export default function EditPage() {
         }
     }, [isViewer, navigate]);
 
-    // 表格行为依赖
-    const canReview = isAuditor || isAdmin;  // 审核按钮只给 auditor/admin
+    const canReview = isAuditor || isAdmin;
     const canDeleteAny = isAdmin;
 
     // files
     const [artifactFiles, setArtifactFiles] = useState([]);
     const [readmeFile, setReadmeFile] = useState([]);
 
-    // compliance upload (staged; real upload happens on Update)
+    // compliance upload (staged)
     const [complianceFiles, setComplianceFiles] = useState([]);
     const [complianceTypes, setComplianceTypes] = useState({}); // uid -> type
 
     // compliance list
     const [docs, setDocs] = useState([]);
 
-    // review decisions (staged; applied on Update)
-    // map: docId -> 'approved' | 'rejected'
+    // review decisions (staged)
     const [reviewDecisions, setReviewDecisions] = useState({});
 
-    // tooltip
+    // Update modal
+    const [updateDlg, setUpdateDlg] = useState({
+        open: false,
+        type: 'basic',      // 'model' | 'basic' | 'compliance_upload' | 'compliance_review'
+        note: ''
+    });
+
     const Info = ({children, placement = 'right'}) => (
         <Tooltip
             title={<div className={styles.tip}>{children}</div>}
@@ -70,7 +73,7 @@ export default function EditPage() {
 
     // load model
     useEffect(() => {
-        if (isViewer) return; // 已重定向，无需加载
+        if (isViewer) return;
         api.get(`/models/${id}`)
             .then(res => {
                 const m = res.data;
@@ -130,7 +133,7 @@ export default function EditPage() {
             key: 'status',
             render: (s) => {
                 const colorNow = s === 'approved' ? 'green' : s === 'rejected' ? 'red' : 'gold';
-                return <Tag color={colorNow}>{s}</Tag>;       // ← 去掉 queued 的显示
+                return <Tag color={colorNow}>{s}</Tag>;
             },
         },
         {
@@ -147,23 +150,6 @@ export default function EditPage() {
             align: 'center',
             render: (_t, r) => {
                 const canDelete = canDeleteAny || r.uploaded_by === user?.id;
-
-                // 当前选中的操作（approved | rejected | undefined）
-                const selected = reviewDecisions[r.id];
-                const isApprove = selected === 'approved';
-                const isReject = selected === 'rejected';
-
-                const toggleDecision = (docId, next) => {
-                    setReviewDecisions(d => {
-                        const cur = d[docId];
-                        if (cur === next) {                // 再点一次 -> 取消选择
-                            const nd = {...d};
-                            delete nd[docId];
-                            return nd;
-                        }
-                        return {...d, [docId]: next};      // 选中
-                    });
-                };
 
                 return (
                     <Space size={8} wrap>
@@ -257,42 +243,72 @@ export default function EditPage() {
         setComplianceTypes(nextTypes);
     };
 
-    // ---- Single Update pipeline (按角色分支执行) ----
-    const runSingleUpdate = async () => {
-        try {
-            // uploader/admin 才需要校验表单（auditor 无可编辑字段）
-            if (isUploader || isAdmin) {
-                await form.validateFields();
-            }
+    // 替换原来的 runUpdate
+    const runUpdate = async () => {
+        const type = updateDlg.type;
+        const note = updateDlg.note?.trim() || '';
+        if (!note) {
+            message.error('Description is required.');
+            return;
+        }
 
-            // 1) uploader/admin：更新模型基本信息 & 可选文件
-            if (isUploader || isAdmin) {
+        const meta = {};
+        let prev_artifact_uri = null;
+        let new_artifact_uri = null;
+
+        try {
+            // —— 1) 基本信息 / 模型文件（只有 uploader/admin 能做）——
+            const canModelOps = isUploader || isAdmin;
+            // 只有在确实有意图更改时才触发 PUT：改了表单或选择了 zip/readme
+            const wantPutModel =
+                canModelOps &&
+                (artifactFiles.length > 0 ||
+                    readmeFile.length > 0 ||
+                    form.isFieldsTouched(true));
+
+            if (wantPutModel) {
+                await form.validateFields();
                 const values = form.getFieldsValue(true);
                 const data = new FormData();
+
                 const simple = [
                     'name', 'version', 'description', 'input_schema', 'risk_level',
                     'owner_contact', 'license',
                     'baseline_latency_ms', 'baseline_accuracy', 'baseline_f1', 'baseline_auc'
                 ];
                 simple.forEach(k => {
-                    if (values[k] !== undefined && values[k] !== null && values[k] !== '') data.append(k, values[k]);
+                    if (values[k] !== undefined && values[k] !== null && values[k] !== '') {
+                        data.append(k, values[k]);
+                    }
                 });
                 if (Array.isArray(values.business_tags)) {
                     data.append('business_tags', JSON.stringify(values.business_tags));
                 }
-                // 可选替换
+
+                // 可选替换 artifact / README（若用户选了就带上）
                 artifactFiles.forEach(f => data.append('files', f.originFileObj));
                 if (readmeFile[0]?.originFileObj) data.append('readme', readmeFile[0].originFileObj);
-                await api.put(`/models/${id}`, data, {headers: {'Content-Type': 'multipart/form-data'}});
+
+                const putRes = await api.put(`/models/${id}`, data, {
+                    headers: {'Content-Type': 'multipart/form-data'}
+                });
+
+                const changeMeta = putRes?.data?.change_meta || {};
+                if (Object.keys(changeMeta).length) {
+                    meta.model_change = changeMeta;
+                    if (changeMeta.prev_artifact_uri) prev_artifact_uri = changeMeta.prev_artifact_uri;
+                    if (changeMeta.new_artifact_uri) new_artifact_uri = changeMeta.new_artifact_uri;
+                }
             }
 
-            // 2) uploader/admin：上传待提交的合规文件
+            // —— 2) 合规文件上传（uploader/admin）——
             if ((isUploader || isAdmin) && complianceFiles.length > 0) {
                 const missingType = complianceFiles.some(f => !complianceTypes[f.uid]);
                 if (missingType) {
                     message.error('Please select a type for each compliance document.');
                     return;
                 }
+                const uploadedTypes = [];
                 for (const f of complianceFiles) {
                     const fd = new FormData();
                     fd.append('type', complianceTypes[f.uid]);
@@ -300,19 +316,39 @@ export default function EditPage() {
                     await api.post(`/models/${id}/compliance-docs`, fd, {
                         headers: {'Content-Type': 'multipart/form-data'}
                     });
+                    uploadedTypes.push(complianceTypes[f.uid]);
                 }
+                meta.compliance_upload = {count: uploadedTypes.length, types: uploadedTypes};
             }
 
-            // 3) auditor/admin：应用审核队列
+            // —— 3) 合规审核（auditor/admin）——
             if ((isAuditor || isAdmin) && Object.keys(reviewDecisions).length > 0) {
                 const ids = Object.keys(reviewDecisions);
+                let approved = 0, rejected = 0;
                 for (const docId of ids) {
                     const status = reviewDecisions[docId];
                     await api.put(`/compliance-docs/${docId}/review`, {status, note: ''});
+                    if (status === 'approved') approved++;
+                    if (status === 'rejected') rejected++;
                 }
+                meta.compliance_review = {approved, rejected, total: ids.length, ids};
             }
 
-            // 刷新与清理 staged
+            if (!Object.keys(meta).length) {
+                message.warning('No staged changes to submit.');
+                return;
+            }
+
+            // —— 4) 统一记录一条更新（类型=你在弹窗里选的）——
+            await api.post(`/models/${id}/updates`, {
+                update_type: type,
+                note,
+                meta,
+                prev_artifact_uri,
+                new_artifact_uri
+            });
+
+            // 清理&跳转
             await loadCompliance();
             setComplianceFiles([]);
             setComplianceTypes({});
@@ -321,6 +357,7 @@ export default function EditPage() {
             setReadmeFile([]);
 
             message.success('Updated successfully');
+            setUpdateDlg(s => ({...s, open: false}));
             navigate(`/view/${id}`);
         } catch (e) {
             if (e?.errorFields) {
@@ -332,11 +369,30 @@ export default function EditPage() {
     };
 
     // 可见性开关
-    const showBasics = isAdmin || isUploader;             // auditor 不显示
-    const showFiles = isAdmin || isUploader;              // auditor 不显示
-    const showMetrics = isAdmin || isUploader;            // auditor 不显示
-    const showComplianceUpload = isAdmin || isUploader;   // auditor 不显示上传
-    const showComplianceTable = isAdmin || isAuditor;     // uploader 不显示审核表格
+    const showBasics = isAdmin || isUploader;
+    const showFiles = isAdmin || isUploader;
+    const showMetrics = isAdmin || isUploader;
+    const showComplianceUpload = isAdmin || isUploader;
+    const showComplianceTable = isAdmin || isAuditor;
+
+    // 角色驱动的更新类型选项
+    const allUpdateOpts = [
+        {label: 'Replace model artifact / README', value: 'model'},
+        {label: 'Edit basic information', value: 'basic'},
+        {label: 'Upload compliance documents', value: 'compliance_upload'},
+        {label: 'Review compliance documents', value: 'compliance_review'},
+    ];
+    let typeOptions = [];
+    if (isAdmin) typeOptions = allUpdateOpts;
+    else if (isUploader) typeOptions = allUpdateOpts.slice(0, 3);
+    else if (isAuditor) typeOptions = allUpdateOpts.slice(3);
+
+    const defaultTypeByRole = () => {
+        if (isAdmin) return 'basic';
+        if (isUploader) return 'basic';
+        if (isAuditor) return 'compliance_review';
+        return 'basic';
+    };
 
     return (
         <div className={styles.wrapper}>
@@ -357,13 +413,11 @@ export default function EditPage() {
 
                 <Divider style={{margin: '8px 0 14px'}}/>
 
-                {/* Form（auditor 仅用于底部 Update 触发，不显示字段） */}
                 <Form
                     className={styles.form}
                     layout="vertical"
                     form={form}
                     requiredMark={false}
-                    onFinish={runSingleUpdate}
                 >
                     {/* Basics */}
                     {showBasics && (
@@ -483,11 +537,10 @@ export default function EditPage() {
                     )}
                 </Form>
 
-                {/* Compliance - 上传（uploader/admin） + 审核（auditor/admin） */}
+                {/* Compliance - 上传 + 审核 */}
                 <Divider/>
                 <Title level={4} style={{marginBottom: 10}}>Compliance Documents</Title>
 
-                {/* 上传区：仅 uploader/admin */}
                 {showComplianceUpload && (
                     <div className={styles.group}>
                         <div className={styles.compHeader}>
@@ -559,11 +612,9 @@ export default function EditPage() {
                     </div>
                 )}
 
-                {/* 审核表格：仅 auditor/admin；一次性渲染全部，取消分页 */}
                 {showComplianceTable && (
                     <>
                         <Divider/>
-                        {/* full-bleed table: 宽度脱离卡片内边距，横向可滚 */}
                         <div className={styles.fullBleed}>
                             <div className={styles.tableScroll}>
                                 <Table
@@ -573,20 +624,66 @@ export default function EditPage() {
                                     pagination={false}
                                     size="small"
                                     className={styles.compTable}
-                                    scroll={{x: 'max-content'}}   // 依据列内容自适应，超出则横向滚动
+                                    scroll={{x: 'max-content'}}
                                 />
                             </div>
                         </div>
                     </>
                 )}
 
-                {/* 统一 Update */}
+                {/* Update 按钮 -> 弹窗 */}
                 <div className={styles.updateBar}>
-                    <Button type="primary" size="large" onClick={() => form.submit()}>
+                    <Button
+                        type="primary"
+                        size="large"
+                        onClick={() => setUpdateDlg({open: true, type: defaultTypeByRole(), note: ''})}
+                    >
                         Update
                     </Button>
                 </div>
             </Card>
+
+            {/* Update modal */}
+            <Modal
+                open={updateDlg.open}
+                onCancel={() => setUpdateDlg(s => ({...s, open: false}))}
+                onOk={runUpdate}
+                okText="Submit"
+                cancelText="Cancel"
+                className={styles.updateModal}
+                title="Record an Update"
+                destroyOnClose
+                centered
+                width={640}
+            >
+                <div className={styles.modalRow}>
+                    <div className={styles.modalLabel}>Update type</div>
+                    <Select
+                        className={styles.typeSelect}
+                        value={updateDlg.type}
+                        onChange={(val) => setUpdateDlg(s => ({...s, type: val}))}
+                        placeholder="Choose an update type"
+                        options={typeOptions}
+                    />
+                </div>
+
+                <div className={styles.modalRow}>
+                    <div className={styles.modalLabel}>Description</div>
+                    <Input.TextArea
+                        required
+                        placeholder="What changed and why?"
+                        value={updateDlg.note}
+                        onChange={(e) => setUpdateDlg(s => ({...s, note: e.target.value}))}
+                        autoSize={{minRows: 3, maxRows: 10}}
+                    />
+                </div>
+
+                <Divider style={{margin: '10px 0 10px 0'}}/>
+                <div className={styles.modalHint}>
+                    After submission you will be redirected to the details page. This action is logged in the model’s
+                    update history. Older artifacts remain downloadable, but legacy metadata pages are not stored.
+                </div>
+            </Modal>
         </div>
     );
 }

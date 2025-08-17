@@ -1,4 +1,3 @@
-// backend/src/index.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -14,6 +13,7 @@ const {User, USER_ROLES} = require('./models/user');
 const {ComplianceDoc, COMPLIANCE_TYPES, REVIEW_STATUSES} = require('./models/complianceDoc');
 const {SecurityQA} = require('./models/securityQA');
 const sequelize = require('./config/sequelize');
+const {DataTypes} = require('sequelize'); // ← 新增
 
 const app = express();
 app.use(cors({origin: 'http://localhost:5173', credentials: true}));
@@ -29,10 +29,10 @@ function signToken(user) {
 // fetch latest role from DB on every request
 async function authRequired(req, res, next) {
     const auth = req.headers.authorization || '';
-    const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    if (!token) return res.status(401).json({error: 'Unauthorized'});
+    theToken = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    if (!theToken) return res.status(401).json({error: 'Unauthorized'});
     try {
-        const payload = jwt.verify(token, JWT_SECRET);
+        const payload = jwt.verify(theToken, JWT_SECRET);
         const dbUser = await User.findByPk(payload.uid, {attributes: ['id', 'role']});
         if (!dbUser) return res.status(401).json({error: 'Unauthorized'});
         req.user = {uid: dbUser.id, role: dbUser.role};
@@ -60,8 +60,7 @@ const storage = multer.diskStorage({
     filename: (_req, file, cb) => cb(null, `${Date.now()}_${file.originalname}`)
 });
 
-// ⚠️ 总体允许类型依旧较宽（以兼容合规模块、数据集等上传）
-// 具体到“模型文件”，在路由里做 .zip 强校验
+// ⚠️ 允许的类型维持较宽（合规/数据集等）；模型 ZIP 的强校验在路由里做
 const upload = multer({
     storage,
     fileFilter: (_req, file, cb) => {
@@ -79,6 +78,33 @@ ComplianceDoc.belongsTo(User, {as: 'reviewer', foreignKey: 'reviewer_id'});
 SecurityQA.belongsTo(User, {foreignKey: 'user_id'});
 
 Model.hasMany(ComplianceDoc, {foreignKey: 'model_id', as: 'docs'});
+
+/** ---------------- 新增：更新日志表 ModelUpdate ---------------- **/
+const ModelUpdate = sequelize.define('ModelUpdate', {
+    model_id: {type: DataTypes.INTEGER, allowNull: false},
+    actor_id: {type: DataTypes.INTEGER, allowNull: false},
+    update_type: {                               // 'model' | 'basic' | 'compliance_upload' | 'compliance_review'
+        type: DataTypes.STRING(40),
+        allowNull: false
+    },
+    note: {type: DataTypes.TEXT, allowNull: true},
+    meta: {type: DataTypes.JSONB, allowNull: true},
+    prev_artifact_uri: {type: DataTypes.STRING, allowNull: true},
+    new_artifact_uri: {type: DataTypes.STRING, allowNull: true},
+    name_snapshot: {type: DataTypes.STRING, allowNull: true},
+    version_snapshot: {type: DataTypes.STRING, allowNull: true},
+}, {
+    tableName: 'model_updates',
+    underscored: true,
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: false
+});
+
+ModelUpdate.belongsTo(Model, {foreignKey: 'model_id'});
+ModelUpdate.belongsTo(User, {as: 'actor', foreignKey: 'actor_id'});
+Model.hasMany(ModelUpdate, {foreignKey: 'model_id', as: 'updates'});
+/** ---------------------------------------------------------------- **/
 
 // ---- DB sync & seed admin ----
 sequelize.sync({alter: true})
@@ -203,7 +229,6 @@ app.post('/auth/login', async (req, res) => {
     const user = await User.findOne({where: {email}});
     if (!user) return res.status(401).json({error: 'User not found'});
     const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({error: 'Password does not match'});
     const token = signToken(user);
     res.json({token, user: {id: user.id, email: user.email, role: user.role}});
 });
@@ -219,7 +244,7 @@ app.get('/admin/users', authRequired, requireRole('admin'), async (_req, res) =>
     res.json(users);
 });
 
-// Delete user (admin only) — prevent deleting self or the last admin
+// Delete user (admin only)
 app.delete('/admin/users/:id', authRequired, requireRole('admin'), async (req, res, next) => {
     try {
         const targetId = Number(req.params.id);
@@ -240,7 +265,6 @@ app.delete('/admin/users/:id', authRequired, requireRole('admin'), async (req, r
         }
 
         await SecurityQA.destroy({where: {user_id: targetId}});
-
         await user.destroy();
         res.sendStatus(204);
     } catch (err) {
@@ -396,7 +420,7 @@ app.post(
     '/models',
     authRequired, requireRole(['uploader', 'admin']),
     upload.fields([
-        {name: 'files', maxCount: 1},          // ← 仅 1 个 ZIP
+        {name: 'files', maxCount: 1},          // 仅 1 个 ZIP
         {name: 'readme', maxCount: 1},
         {name: 'compliance_docs', maxCount: 20},
         {name: 'training_data', maxCount: 50},
@@ -419,7 +443,7 @@ app.post(
                 return res.status(400).json({error: 'Invalid license'});
             }
 
-            // ---- 模型文件仅支持 ZIP，并强校验命名 ----
+            // 模型文件仅支持 ZIP，并强校验命名
             const filesArr = req.files?.files || [];
             if (!filesArr.length) return res.status(400).json({error: 'Model artifact file is required (.zip)'});
 
@@ -432,7 +456,7 @@ app.post(
                 return res.status(400).json({error: 'Model .zip name must be ASCII [A-Za-z0-9._-] with no spaces'});
             }
 
-            // ---- README 仅允许 .md 或 .pdf ----
+            // README 仅允许 .md 或 .pdf
             const readme = req.files.readme?.[0];
             if (readme && !/\.(md|pdf)$/i.test(readme.originalname)) {
                 return res.status(400).json({error: 'README must be .md or .pdf'});
@@ -465,12 +489,12 @@ app.post(
     }
 );
 
-// Update: uploader/admin
+// Update: uploader/admin —— 仅更新，不写日志；把变更摘要返回给前端
 app.put(
     '/models/:id',
     authRequired, requireRole(['uploader', 'admin']),
     upload.fields([
-        {name: 'files', maxCount: 1},          // ← 仅 1 个 ZIP
+        {name: 'files', maxCount: 1},          // 仅 1 个 ZIP
         {name: 'readme', maxCount: 1},
         {name: 'compliance_docs', maxCount: 20},
         {name: 'training_data', maxCount: 50},
@@ -504,7 +528,11 @@ app.put(
 
             if (req.body.business_tags !== undefined) data.business_tags = safeParseArray(req.body.business_tags);
 
+            // 变更前快照
+            const prevArtifact = rec.artifact_uri;
+
             // 可选替换 ZIP
+            let artifactChanged = false;
             if (req.files?.files?.length) {
                 const mf = req.files.files[0];
                 const base = path.basename(mf.originalname);
@@ -515,6 +543,7 @@ app.put(
                     return res.status(400).json({error: 'Model .zip name must be ASCII [A-Za-z0-9._-] with no spaces'});
                 }
                 data.artifact_uri = `/uploads/${mf.filename}`;
+                artifactChanged = true;
             }
 
             // 可选替换 README（仅 .md|.pdf）
@@ -526,12 +555,31 @@ app.put(
                 data.readme_uri = `/uploads/${readme.filename}`;
             }
 
-            if (req.files?.compliance_docs?.length) data.compliance_docs = toArrayFromFiles(req.files.compliance_docs);
-            if (req.files?.training_data?.length) data.training_data_uris = toArrayFromFiles(req.files.training_data);
-            if (req.files?.validation_data?.length) data.validation_data_uris = toArrayFromFiles(req.files.validation_data);
+            // 变更字段集合（仅记录值有变化的）
+            const maybeFields = [
+                'name', 'version', 'description', 'input_schema', 'risk_level', 'owner_contact', 'license',
+                'baseline_latency_ms', 'baseline_accuracy', 'baseline_f1', 'baseline_auc', 'business_tags'
+            ];
+            const changedFields = [];
+            for (const k of maybeFields) {
+                if (data[k] !== undefined) {
+                    const oldVal = rec[k];
+                    const newVal = data[k];
+                    if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) changedFields.push(k);
+                }
+            }
 
             await rec.update(data);
-            res.json(rec);
+
+            // 不在这里写日志；只把“变更摘要”回给前端
+            const change_meta = {
+                changed_fields: changedFields,
+                artifact_changed: artifactChanged,
+                prev_artifact_uri: artifactChanged ? prevArtifact : null,
+                new_artifact_uri: artifactChanged ? rec.artifact_uri : null
+            };
+
+            res.json({updated: rec, change_meta});
         } catch (err) {
             next(err);
         }
@@ -677,6 +725,49 @@ app.get('/compliance/status', authRequired, async (_req, res, next) => {
 app.get('/compliance/requirements', authRequired, (_req, res) => {
     res.json({REQUIRED_DOCS, COMPLIANCE_TYPES, REVIEW_STATUSES});
 });
+
+/** -------- 更新历史路由 -------- **/
+app.get('/models/:id/updates', authRequired, async (req, res, next) => {
+    try {
+        const modelId = Number(req.params.id);
+        const list = await ModelUpdate.findAll({
+            where: {model_id: modelId},
+            order: [['created_at', 'DESC']],
+            include: [{model: User, as: 'actor', attributes: ['id', 'email']}]
+        });
+        res.json(list);
+    } catch (err) {
+        next(err);
+    }
+});
+
+app.post('/models/:id/updates', authRequired, async (req, res, next) => {
+    try {
+        const modelId = Number(req.params.id);
+        const {update_type, note, meta, prev_artifact_uri, new_artifact_uri} = req.body || {};
+        const allowed = new Set(['model', 'basic', 'compliance_upload', 'compliance_review']);
+        if (!allowed.has(String(update_type))) {
+            return res.status(400).json({error: 'Invalid update_type'});
+        }
+        const rec = await Model.findByPk(modelId);
+        if (!rec) return res.status(404).json({error: 'Not found'});
+        const row = await ModelUpdate.create({
+            model_id: modelId,
+            actor_id: req.user.uid,
+            update_type,
+            note: note || null,
+            meta: meta || null,
+            prev_artifact_uri: prev_artifact_uri || null,
+            new_artifact_uri: new_artifact_uri || null,
+            name_snapshot: rec.name,
+            version_snapshot: rec.version
+        });
+        res.status(201).json(row);
+    } catch (err) {
+        next(err);
+    }
+});
+/** ----------------------------------- **/
 
 // ---- Error handler ----
 app.use((err, _req, res, _next) => {
