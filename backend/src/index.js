@@ -13,7 +13,7 @@ const {User, USER_ROLES} = require('./models/user');
 const {ComplianceDoc, COMPLIANCE_TYPES, REVIEW_STATUSES} = require('./models/complianceDoc');
 const {SecurityQA} = require('./models/securityQA');
 const sequelize = require('./config/sequelize');
-const {DataTypes} = require('sequelize'); // ← 新增
+const {DataTypes} = require('sequelize');
 
 const app = express();
 app.use(cors({origin: 'http://localhost:5173', credentials: true}));
@@ -29,10 +29,10 @@ function signToken(user) {
 // fetch latest role from DB on every request
 async function authRequired(req, res, next) {
     const auth = req.headers.authorization || '';
-    theToken = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    if (!theToken) return res.status(401).json({error: 'Unauthorized'});
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    if (!token) return res.status(401).json({error: 'Unauthorized'});
     try {
-        const payload = jwt.verify(theToken, JWT_SECRET);
+        const payload = jwt.verify(token, JWT_SECRET);
         const dbUser = await User.findByPk(payload.uid, {attributes: ['id', 'role']});
         if (!dbUser) return res.status(401).json({error: 'Unauthorized'});
         req.user = {uid: dbUser.id, role: dbUser.role};
@@ -60,7 +60,7 @@ const storage = multer.diskStorage({
     filename: (_req, file, cb) => cb(null, `${Date.now()}_${file.originalname}`)
 });
 
-// ⚠️ 允许的类型维持较宽（合规/数据集等）；模型 ZIP 的强校验在路由里做
+// 允许的类型较宽（合规/数据集等）；模型 ZIP 的强校验在路由里做
 const upload = multer({
     storage,
     fileFilter: (_req, file, cb) => {
@@ -79,14 +79,11 @@ SecurityQA.belongsTo(User, {foreignKey: 'user_id'});
 
 Model.hasMany(ComplianceDoc, {foreignKey: 'model_id', as: 'docs'});
 
-/** ---------------- 新增：更新日志表 ModelUpdate ---------------- **/
+/** ---------------- 更新日志表 ModelUpdate ---------------- **/
 const ModelUpdate = sequelize.define('ModelUpdate', {
     model_id: {type: DataTypes.INTEGER, allowNull: false},
     actor_id: {type: DataTypes.INTEGER, allowNull: false},
-    update_type: {                               // 'model' | 'basic' | 'compliance_upload' | 'compliance_review'
-        type: DataTypes.STRING(40),
-        allowNull: false
-    },
+    update_type: {type: DataTypes.STRING(40), allowNull: false}, // 'model' | 'basic' | 'compliance_upload' | 'compliance_review'
     note: {type: DataTypes.TEXT, allowNull: true},
     meta: {type: DataTypes.JSONB, allowNull: true},
     prev_artifact_uri: {type: DataTypes.STRING, allowNull: true},
@@ -229,6 +226,7 @@ app.post('/auth/login', async (req, res) => {
     const user = await User.findOne({where: {email}});
     if (!user) return res.status(401).json({error: 'User not found'});
     const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({error: 'Password does not match'});
     const token = signToken(user);
     res.json({token, user: {id: user.id, email: user.email, role: user.role}});
 });
@@ -571,7 +569,6 @@ app.put(
 
             await rec.update(data);
 
-            // 不在这里写日志；只把“变更摘要”回给前端
             const change_meta = {
                 changed_fields: changedFields,
                 artifact_changed: artifactChanged,
@@ -726,7 +723,7 @@ app.get('/compliance/requirements', authRequired, (_req, res) => {
     res.json({REQUIRED_DOCS, COMPLIANCE_TYPES, REVIEW_STATUSES});
 });
 
-/** -------- 更新历史路由 -------- **/
+/** -------- 更新历史路由（支持多选类型） -------- **/
 app.get('/models/:id/updates', authRequired, async (req, res, next) => {
     try {
         const modelId = Number(req.params.id);
@@ -744,25 +741,40 @@ app.get('/models/:id/updates', authRequired, async (req, res, next) => {
 app.post('/models/:id/updates', authRequired, async (req, res, next) => {
     try {
         const modelId = Number(req.params.id);
-        const {update_type, note, meta, prev_artifact_uri, new_artifact_uri} = req.body || {};
+        const {update_type, update_types, note, meta, prev_artifact_uri, new_artifact_uri} = req.body || {};
+
         const allowed = new Set(['model', 'basic', 'compliance_upload', 'compliance_review']);
-        if (!allowed.has(String(update_type))) {
-            return res.status(400).json({error: 'Invalid update_type'});
+        let types = [];
+
+        if (Array.isArray(update_types) && update_types.length) {
+            types = [...new Set(update_types.filter(t => allowed.has(String(t))))];
+        } else if (typeof update_type === 'string' && allowed.has(update_type)) {
+            types = [update_type];
         }
+
+        if (!types.length) {
+            return res.status(400).json({error: 'Invalid update_type(s)'});
+        }
+
         const rec = await Model.findByPk(modelId);
         if (!rec) return res.status(404).json({error: 'Not found'});
-        const row = await ModelUpdate.create({
-            model_id: modelId,
-            actor_id: req.user.uid,
-            update_type,
-            note: note || null,
-            meta: meta || null,
-            prev_artifact_uri: prev_artifact_uri || null,
-            new_artifact_uri: new_artifact_uri || null,
-            name_snapshot: rec.name,
-            version_snapshot: rec.version
-        });
-        res.status(201).json(row);
+
+        const rows = [];
+        for (const t of types) {
+            const row = await ModelUpdate.create({
+                model_id: modelId,
+                actor_id: req.user.uid,
+                update_type: t,
+                note: note || null,
+                meta: meta || null,
+                prev_artifact_uri: prev_artifact_uri || null,
+                new_artifact_uri: new_artifact_uri || null,
+                name_snapshot: rec.name,
+                version_snapshot: rec.version
+            });
+            rows.push(row);
+        }
+        res.status(201).json({created: rows.length, items: rows});
     } catch (err) {
         next(err);
     }

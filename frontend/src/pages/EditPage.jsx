@@ -2,7 +2,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import {
     Form, Input, Button, Select, Upload, message, Typography, Space, InputNumber,
-    Table, Tag, Modal, Divider, Tooltip, Card, Popconfirm
+    Table, Tag, Modal, Divider, Tooltip, Card
 } from 'antd';
 import {
     UploadOutlined, CheckCircleOutlined, CloseCircleOutlined,
@@ -48,18 +48,31 @@ export default function EditPage() {
     const [complianceFiles, setComplianceFiles] = useState([]);
     const [complianceTypes, setComplianceTypes] = useState({}); // uid -> type
 
-    // compliance list
+    // compliance list (from server)
     const [docs, setDocs] = useState([]);
 
-    // review decisions (staged)
+    // staged review decisions: {docId: 'approved'|'rejected'}
     const [reviewDecisions, setReviewDecisions] = useState({});
 
-    // Update modal
+    // NEW: staged deletions: {docId: true}
+    const [deleteQueue, setDeleteQueue] = useState({});
+
+    // Update modal (single-select)
     const [updateDlg, setUpdateDlg] = useState({
         open: false,
         type: 'basic',      // 'model' | 'basic' | 'compliance_upload' | 'compliance_review'
         note: ''
     });
+
+    const actionBtnStyle = (opts) => {
+        const {active = false, color, borderColor, bgOn = 'rgba(255,255,255,0.05)'} = opts;
+        return {
+            color,
+            border: active ? `1px solid ${borderColor}` : 'none',
+            background: active ? bgOn : 'transparent',
+            borderRadius: 10,
+        };
+    };
 
     const Info = ({children, placement = 'right'}) => (
         <Tooltip
@@ -113,6 +126,7 @@ export default function EditPage() {
     );
 
     // 审核表格列
+    // ---- 审核表格列 ----
     const columns = [
         {title: 'ID', dataIndex: 'id', key: 'id', width: 48, align: 'center', fixed: 'left'},
         {title: 'Type', dataIndex: 'type', key: 'type', render: t => <Tag>{t}</Tag>},
@@ -143,6 +157,7 @@ export default function EditPage() {
             render: (_, r) => r.uploader?.email || r.uploaded_by
         },
         {title: 'Reviewer', key: 'reviewer', ellipsis: true, render: (_, r) => r.reviewer?.email || '—'},
+
         {
             title: 'Actions',
             key: 'actions',
@@ -150,77 +165,101 @@ export default function EditPage() {
             align: 'center',
             render: (_t, r) => {
                 const canDelete = canDeleteAny || r.uploaded_by === user?.id;
+                const isApproved = reviewDecisions[r.id] === 'approved';
+                const isRejected = reviewDecisions[r.id] === 'rejected';
+                const isDelMarked = !!deleteQueue[r.id];
 
                 return (
                     <Space size={8} wrap>
+                        {/* 审核：仅 auditor/admin，并且仅对 pending 可操作 */}
                         {canReview && r.status === 'pending' && (
                             <>
+                                {/* Approve：绿色；选中出现淡边框；且与 Delete 互斥 */}
                                 <Tooltip title="Approve">
                                     <Button
-                                        style={{
-                                            color: reviewDecisions[r.id] === 'approved' ? '#13c2c2' : '#13c2c2',
-                                            border: reviewDecisions[r.id] === 'approved' ? '1px solid #b5f5ec' : 'none',
-                                        }}
+                                        type="text"
                                         icon={<CheckCircleOutlined/>}
-                                        onClick={() =>
+                                        style={actionBtnStyle({
+                                            active: isApproved,
+                                            color: '#16a34a',       // green-600
+                                            borderColor: '#86efac', // green-300
+                                        })}
+                                        onClick={() => {
                                             setReviewDecisions(d => {
-                                                const current = d[r.id];
+                                                const curr = d[r.id];
                                                 const nd = {...d};
-                                                if (current === 'approved') {
-                                                    delete nd[r.id];
-                                                } else {
-                                                    nd[r.id] = 'approved';
-                                                }
+                                                // 切换选中
+                                                if (curr === 'approved') delete nd[r.id];
+                                                else nd[r.id] = 'approved';
                                                 return nd;
-                                            })
-                                        }
+                                            });
+                                            // 互斥：选择 Approve 时取消 Delete
+                                            setDeleteQueue(q => {
+                                                const nq = {...q};
+                                                delete nq[r.id];
+                                                return nq;
+                                            });
+                                        }}
                                     />
                                 </Tooltip>
+
+                                {/* Reject：红色；选中出现淡边框；且与 Delete 互斥 */}
                                 <Tooltip title="Reject">
                                     <Button
-                                        style={{
-                                            color: reviewDecisions[r.id] === 'rejected' ? '#f5222d' : '#f5222d',
-                                            border: reviewDecisions[r.id] === 'rejected' ? '1px solid #ffa39e' : 'none',
-                                        }}
+                                        type="text"
                                         icon={<CloseCircleOutlined/>}
-                                        onClick={() =>
+                                        style={actionBtnStyle({
+                                            active: isRejected,
+                                            color: '#ef4444',       // red-500
+                                            borderColor: '#fecaca', // red-200
+                                        })}
+                                        onClick={() => {
                                             setReviewDecisions(d => {
-                                                const current = d[r.id];
+                                                const curr = d[r.id];
                                                 const nd = {...d};
-                                                if (current === 'rejected') {
-                                                    delete nd[r.id];
-                                                } else {
-                                                    nd[r.id] = 'rejected';
-                                                }
+                                                if (curr === 'rejected') delete nd[r.id];
+                                                else nd[r.id] = 'rejected';
                                                 return nd;
-                                            })
-                                        }
+                                            });
+                                            // 互斥：选择 Reject 时取消 Delete
+                                            setDeleteQueue(q => {
+                                                const nq = {...q};
+                                                delete nq[r.id];
+                                                return nq;
+                                            });
+                                        }}
                                     />
                                 </Tooltip>
                             </>
                         )}
 
+                        {/* Delete：与 Approve/Reject 风格一致；互斥 */}
                         {canDelete && (
-                            <Tooltip title="Delete">
-                                <Popconfirm
-                                    title="Delete this document?"
-                                    onConfirm={async () => {
-                                        try {
-                                            await api.delete(`/compliance-docs/${r.id}`);
-                                            message.success('Deleted');
-                                            await loadCompliance();
-                                            setReviewDecisions(d => {
-                                                const nd = {...d};
-                                                delete nd[r.id];
-                                                return nd;
-                                            });
-                                        } catch (e) {
-                                            message.error(e.response?.data?.error || 'Delete failed');
-                                        }
+                            <Tooltip title={isDelMarked ? 'Undo delete' : 'Mark for delete'}>
+                                <Button
+                                    type="text"
+                                    icon={<DeleteOutlined/>}
+                                    style={actionBtnStyle({
+                                        active: isDelMarked,
+                                        color: 'red',        // orange-500（与 Reject 区分）
+                                        borderColor: 'red',  // orange-200
+                                    })}
+                                    onClick={() => {
+                                        setDeleteQueue(q => {
+                                            const nq = {...q};
+                                            if (nq[r.id]) delete nq[r.id];
+                                            else nq[r.id] = true;
+                                            return nq;
+                                        });
+                                        // 互斥：选择 Delete 时取消 Approve/Reject
+                                        setReviewDecisions(d => {
+                                            if (!d[r.id]) return d;
+                                            const nd = {...d};
+                                            delete nd[r.id];
+                                            return nd;
+                                        });
                                     }}
-                                >
-                                    <Button type="text" danger icon={<DeleteOutlined/>}/>
-                                </Popconfirm>
+                                />
                             </Tooltip>
                         )}
                     </Space>
@@ -243,7 +282,7 @@ export default function EditPage() {
         setComplianceTypes(nextTypes);
     };
 
-    // 替换原来的 runUpdate
+    // 提交
     const runUpdate = async () => {
         const type = updateDlg.type;
         const note = updateDlg.note?.trim() || '';
@@ -257,9 +296,8 @@ export default function EditPage() {
         let new_artifact_uri = null;
 
         try {
-            // —— 1) 基本信息 / 模型文件（只有 uploader/admin 能做）——
+            // 1) 基本信息 / 模型文件（uploader/admin）
             const canModelOps = isUploader || isAdmin;
-            // 只有在确实有意图更改时才触发 PUT：改了表单或选择了 zip/readme
             const wantPutModel =
                 canModelOps &&
                 (artifactFiles.length > 0 ||
@@ -285,7 +323,6 @@ export default function EditPage() {
                     data.append('business_tags', JSON.stringify(values.business_tags));
                 }
 
-                // 可选替换 artifact / README（若用户选了就带上）
                 artifactFiles.forEach(f => data.append('files', f.originFileObj));
                 if (readmeFile[0]?.originFileObj) data.append('readme', readmeFile[0].originFileObj);
 
@@ -301,7 +338,7 @@ export default function EditPage() {
                 }
             }
 
-            // —— 2) 合规文件上传（uploader/admin）——
+            // 2) 合规上传（uploader/admin）
             if ((isUploader || isAdmin) && complianceFiles.length > 0) {
                 const missingType = complianceFiles.some(f => !complianceTypes[f.uid]);
                 if (missingType) {
@@ -309,29 +346,52 @@ export default function EditPage() {
                     return;
                 }
                 const uploadedTypes = [];
+                const uploadedIds = [];
                 for (const f of complianceFiles) {
                     const fd = new FormData();
                     fd.append('type', complianceTypes[f.uid]);
                     fd.append('doc', f.originFileObj);
-                    await api.post(`/models/${id}/compliance-docs`, fd, {
+                    const resp = await api.post(`/models/${id}/compliance-docs`, fd, {
                         headers: {'Content-Type': 'multipart/form-data'}
                     });
                     uploadedTypes.push(complianceTypes[f.uid]);
+                    uploadedIds.push(resp?.data?.id);
                 }
-                meta.compliance_upload = {count: uploadedTypes.length, types: uploadedTypes};
+                meta.compliance_upload = {count: uploadedTypes.length, types: uploadedTypes, ids: uploadedIds};
             }
 
-            // —— 3) 合规审核（auditor/admin）——
+            // 3) 合规审核（auditor/admin）
             if ((isAuditor || isAdmin) && Object.keys(reviewDecisions).length > 0) {
-                const ids = Object.keys(reviewDecisions);
-                let approved = 0, rejected = 0;
-                for (const docId of ids) {
-                    const status = reviewDecisions[docId];
-                    await api.put(`/compliance-docs/${docId}/review`, {status, note: ''});
-                    if (status === 'approved') approved++;
-                    if (status === 'rejected') rejected++;
+                // 若某 doc 同时被标记删除，则跳过审核该 doc
+                const toReviewIds = Object.keys(reviewDecisions).filter(id => !deleteQueue[id]);
+                if (toReviewIds.length > 0) {
+                    let approved = 0, rejected = 0;
+                    for (const docId of toReviewIds) {
+                        const status = reviewDecisions[docId];
+                        await api.put(`/compliance-docs/${docId}/review`, {status, note: ''});
+                        if (status === 'approved') approved++;
+                        if (status === 'rejected') rejected++;
+                    }
+                    meta.compliance_review = {approved, rejected, total: toReviewIds.length, ids: toReviewIds};
                 }
-                meta.compliance_review = {approved, rejected, total: ids.length, ids};
+            }
+
+            // 4) 合规删除（admin 或本人）—— 现在改为“按 Update 才生效”
+            const delIds = Object.keys(deleteQueue);
+            if ((isAdmin || isUploader) && delIds.length > 0) {
+                const actuallyDeleted = [];
+                for (const docId of delIds) {
+                    try {
+                        await api.delete(`/compliance-docs/${docId}`);
+                        actuallyDeleted.push(docId);
+                    } catch (e) {
+                        // 如果权限或并发失败，给出提示但继续其他项
+                        message.error(e?.response?.data?.error || `Delete doc ${docId} failed`);
+                    }
+                }
+                if (actuallyDeleted.length > 0) {
+                    meta.compliance_delete = {deleted: actuallyDeleted.length, ids: actuallyDeleted};
+                }
             }
 
             if (!Object.keys(meta).length) {
@@ -339,20 +399,21 @@ export default function EditPage() {
                 return;
             }
 
-            // —— 4) 统一记录一条更新（类型=你在弹窗里选的）——
+            // 5) 统一记录一次 update（类型单选）
             await api.post(`/models/${id}/updates`, {
-                update_type: type,
+                update_type: updateDlg.type,
                 note,
                 meta,
                 prev_artifact_uri,
                 new_artifact_uri
             });
 
-            // 清理&跳转
+            // 清理&刷新
             await loadCompliance();
             setComplianceFiles([]);
             setComplianceTypes({});
             setReviewDecisions({});
+            setDeleteQueue({});
             setArtifactFiles([]);
             setReadmeFile([]);
 
@@ -375,7 +436,7 @@ export default function EditPage() {
     const showComplianceUpload = isAdmin || isUploader;
     const showComplianceTable = isAdmin || isAuditor;
 
-    // 角色驱动的更新类型选项
+    // 角色驱动的更新类型选项（单选）
     const allUpdateOpts = [
         {label: 'Replace model artifact / README', value: 'model'},
         {label: 'Edit basic information', value: 'basic'},
@@ -472,7 +533,8 @@ export default function EditPage() {
                                             placeholder="Type tag then Enter" maxTagCount="responsive"/>
                                 </Form.Item>
 
-                                <Form.Item name="description" label="Brief Description" rules={[{required: true}]}
+                                {/* 改名：Brief Description -> Description（仍 required） */}
+                                <Form.Item name="description" label="Description" rules={[{required: true}]}
                                            style={{gridColumn: '1 / -1'}}>
                                     <Input.TextArea id="description" autoSize={{minRows: 3, maxRows: 10}}/>
                                 </Form.Item>
@@ -631,7 +693,7 @@ export default function EditPage() {
                     </>
                 )}
 
-                {/* Update 按钮 -> 弹窗 */}
+                {/* Update 按钮 -> 弹窗（单选） */}
                 <div className={styles.updateBar}>
                     <Button
                         type="primary"
