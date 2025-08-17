@@ -64,6 +64,14 @@ export default function EditPage() {
         note: ''
     });
 
+    // 用于判断 Basics + Baseline Metrics 是否真的变更
+    const TRACKED_FIELDS = [
+        'name', 'version', 'description', 'input_schema', 'risk_level',
+        'owner_contact', 'license', 'business_tags',
+        'baseline_accuracy', 'baseline_f1', 'baseline_auc', 'baseline_latency_ms'
+    ];
+    const [initialSnapshot, setInitialSnapshot] = useState(null);
+
     const actionBtnStyle = (opts) => {
         const {active = false, color, borderColor, bgOn = 'rgba(255,255,255,0.05)'} = opts;
         return {
@@ -104,9 +112,27 @@ export default function EditPage() {
                     owner_contact: m.owner_contact || '',
                     license: m.license || undefined,
                 });
+                // 建立“初始快照”（仅关心 Basics + Metrics）
+                const snap = {};
+                TRACKED_FIELDS.forEach(k => {
+                    snap[k] = m[k] ?? null;
+                });
+                setInitialSnapshot(snap);
             })
             .catch(() => message.error('Failed to load model'));
     }, [id, form, isViewer]);
+
+    const basicsOrMetricsChanged = () => {
+        if (!initialSnapshot) return false;
+        const cur = form.getFieldsValue(true);
+        return TRACKED_FIELDS.some(k => {
+            const a = initialSnapshot[k] ?? null;
+            const b = (k === 'business_tags')
+                ? (Array.isArray(cur[k]) ? cur[k] : [])
+                : (cur[k] ?? null);
+            return JSON.stringify(a) !== JSON.stringify(b);
+        });
+    };
 
     const loadCompliance = async () => {
         try {
@@ -125,7 +151,6 @@ export default function EditPage() {
         []
     );
 
-    // 审核表格列
     // ---- 审核表格列 ----
     const columns = [
         {title: 'ID', dataIndex: 'id', key: 'id', width: 48, align: 'center', fixed: 'left'},
@@ -174,26 +199,24 @@ export default function EditPage() {
                         {/* 审核：仅 auditor/admin，并且仅对 pending 可操作 */}
                         {canReview && r.status === 'pending' && (
                             <>
-                                {/* Approve：绿色；选中出现淡边框；且与 Delete 互斥 */}
+                                {/* Approve */}
                                 <Tooltip title="Approve">
                                     <Button
                                         type="text"
                                         icon={<CheckCircleOutlined/>}
                                         style={actionBtnStyle({
                                             active: isApproved,
-                                            color: '#16a34a',       // green-600
-                                            borderColor: '#86efac', // green-300
+                                            color: '#16a34a',
+                                            borderColor: '#86efac',
                                         })}
                                         onClick={() => {
                                             setReviewDecisions(d => {
                                                 const curr = d[r.id];
                                                 const nd = {...d};
-                                                // 切换选中
                                                 if (curr === 'approved') delete nd[r.id];
                                                 else nd[r.id] = 'approved';
                                                 return nd;
                                             });
-                                            // 互斥：选择 Approve 时取消 Delete
                                             setDeleteQueue(q => {
                                                 const nq = {...q};
                                                 delete nq[r.id];
@@ -203,15 +226,15 @@ export default function EditPage() {
                                     />
                                 </Tooltip>
 
-                                {/* Reject：红色；选中出现淡边框；且与 Delete 互斥 */}
+                                {/* Reject */}
                                 <Tooltip title="Reject">
                                     <Button
                                         type="text"
                                         icon={<CloseCircleOutlined/>}
                                         style={actionBtnStyle({
                                             active: isRejected,
-                                            color: '#ef4444',       // red-500
-                                            borderColor: '#fecaca', // red-200
+                                            color: '#ef4444',
+                                            borderColor: '#fecaca',
                                         })}
                                         onClick={() => {
                                             setReviewDecisions(d => {
@@ -221,7 +244,6 @@ export default function EditPage() {
                                                 else nd[r.id] = 'rejected';
                                                 return nd;
                                             });
-                                            // 互斥：选择 Reject 时取消 Delete
                                             setDeleteQueue(q => {
                                                 const nq = {...q};
                                                 delete nq[r.id];
@@ -233,7 +255,7 @@ export default function EditPage() {
                             </>
                         )}
 
-                        {/* Delete：与 Approve/Reject 风格一致；互斥 */}
+                        {/* Delete：互斥 */}
                         {canDelete && (
                             <Tooltip title={isDelMarked ? 'Undo delete' : 'Mark for delete'}>
                                 <Button
@@ -251,7 +273,6 @@ export default function EditPage() {
                                             else nq[r.id] = true;
                                             return nq;
                                         });
-                                        // 互斥：选择 Delete 时取消 Approve/Reject
                                         setReviewDecisions(d => {
                                             if (!d[r.id]) return d;
                                             const nd = {...d};
@@ -284,7 +305,6 @@ export default function EditPage() {
 
     // 提交
     const runUpdate = async () => {
-        const type = updateDlg.type;
         const note = updateDlg.note?.trim() || '';
         if (!note) {
             message.error('Description is required.');
@@ -300,9 +320,11 @@ export default function EditPage() {
             const canModelOps = isUploader || isAdmin;
             const wantPutModel =
                 canModelOps &&
-                (artifactFiles.length > 0 ||
+                (
+                    artifactFiles.length > 0 ||
                     readmeFile.length > 0 ||
-                    form.isFieldsTouched(true));
+                    basicsOrMetricsChanged()      // 关键修复：对比快照判断是否有变更
+                );
 
             if (wantPutModel) {
                 await form.validateFields();
@@ -336,6 +358,15 @@ export default function EditPage() {
                     if (changeMeta.prev_artifact_uri) prev_artifact_uri = changeMeta.prev_artifact_uri;
                     if (changeMeta.new_artifact_uri) new_artifact_uri = changeMeta.new_artifact_uri;
                 }
+
+                // 提交成功后更新快照，避免二次提交虚假变更
+                const newSnap = {};
+                TRACKED_FIELDS.forEach(k => {
+                    newSnap[k] = (k === 'business_tags')
+                        ? (Array.isArray(values[k]) ? values[k] : [])
+                        : (values[k] ?? null);
+                });
+                setInitialSnapshot(newSnap);
             }
 
             // 2) 合规上传（uploader/admin）
@@ -362,7 +393,6 @@ export default function EditPage() {
 
             // 3) 合规审核（auditor/admin）
             if ((isAuditor || isAdmin) && Object.keys(reviewDecisions).length > 0) {
-                // 若某 doc 同时被标记删除，则跳过审核该 doc
                 const toReviewIds = Object.keys(reviewDecisions).filter(id => !deleteQueue[id]);
                 if (toReviewIds.length > 0) {
                     let approved = 0, rejected = 0;
@@ -376,7 +406,7 @@ export default function EditPage() {
                 }
             }
 
-            // 4) 合规删除（admin 或本人）—— 现在改为“按 Update 才生效”
+            // 4) 合规删除（admin 或本人）—— 按 Update 才执行
             const delIds = Object.keys(deleteQueue);
             if ((isAdmin || isUploader) && delIds.length > 0) {
                 const actuallyDeleted = [];
@@ -385,7 +415,6 @@ export default function EditPage() {
                         await api.delete(`/compliance-docs/${docId}`);
                         actuallyDeleted.push(docId);
                     } catch (e) {
-                        // 如果权限或并发失败，给出提示但继续其他项
                         message.error(e?.response?.data?.error || `Delete doc ${docId} failed`);
                     }
                 }
@@ -533,7 +562,6 @@ export default function EditPage() {
                                             placeholder="Type tag then Enter" maxTagCount="responsive"/>
                                 </Form.Item>
 
-                                {/* 改名：Brief Description -> Description（仍 required） */}
                                 <Form.Item name="description" label="Description" rules={[{required: true}]}
                                            style={{gridColumn: '1 / -1'}}>
                                     <Input.TextArea id="description" autoSize={{minRows: 3, maxRows: 10}}/>

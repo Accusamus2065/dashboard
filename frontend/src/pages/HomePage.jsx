@@ -246,7 +246,6 @@ export default function HomePage() {
         {
             title: 'Name / Version',
             dataIndex: 'name',
-            width: 180,
             render: (_, m) => (
                 <Space size={6} wrap>
                     <Text strong>{m?.name || '(unnamed)'}</Text>
@@ -257,7 +256,6 @@ export default function HomePage() {
         {
             title: 'Compliance',
             dataIndex: 'compliance',
-            width: 200,
             render: (_, m) => {
                 const st = docStats[m.id];
                 if (!st) return <Text type="secondary">Loading…</Text>;
@@ -318,7 +316,6 @@ export default function HomePage() {
         },
         {
             title: 'Metrics',
-            width: 380,
             dataIndex: 'metrics',
             render: (_, m) => metricChips(m),
         },

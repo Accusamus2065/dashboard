@@ -150,8 +150,8 @@ export default function ModelDetailPage() {
     }, [model]);
 
     const docColumns = [
-        {title: 'ID', dataIndex: 'id', key: 'id', width: 70},
-        {title: 'Type', dataIndex: 'type', key: 'type', width: 110, render: t => <Tag>{t}</Tag>},
+        {title: 'ID', dataIndex: 'id', key: 'id', width: 48, align: 'center'},
+        {title: 'Type', dataIndex: 'type', key: 'type', render: t => <Tag>{t}</Tag>},
         {
             title: 'File',
             dataIndex: 'uri',
@@ -162,9 +162,9 @@ export default function ModelDetailPage() {
                 </a>
             )
         },
-        {title: 'Reviewer', key: 'reviewer', width: 180, render: (_, r) => r.reviewer?.email || '—'},
+        {title: 'Reviewer', key: 'reviewer', render: (_, r) => r.reviewer?.email || '—'},
         {
-            title: 'Reviewed At', dataIndex: 'reviewed_at', key: 'reviewed_at', width: 200,
+            title: 'Reviewed At', dataIndex: 'reviewed_at', key: 'reviewed_at',
             render: v => (v ? new Date(v).toLocaleString() : '—')
         }
     ];
@@ -182,9 +182,9 @@ export default function ModelDetailPage() {
     };
 
     const updateColumns = [
-        {title: 'Time', dataIndex: 'created_at', render: v => new Date(v).toLocaleString(), width: 200},
-        {title: 'Actor', dataIndex: ['actor', 'email'], render: (v) => v || '—', width: 220},
-        {title: 'Type', dataIndex: 'update_type', render: typeTag, width: 220},
+        {title: 'Time', dataIndex: 'created_at', render: v => new Date(v).toLocaleString()},
+        {title: 'Actor', dataIndex: ['actor', 'email'], render: (v) => v || '—'},
+        {title: 'Type', dataIndex: 'update_type', render: typeTag},
         {
             title: 'Model', render: (_, r) => (
                 <Space size={6}>
@@ -198,7 +198,7 @@ export default function ModelDetailPage() {
                 r.prev_artifact_uri
                     ? <a href={`${BASE}${r.prev_artifact_uri}`} download><DownloadOutlined/> Download</a>
                     : <Text type="secondary">—</Text>
-            ), width: 160
+            ),
         },
     ];
 
@@ -376,7 +376,7 @@ export default function ModelDetailPage() {
                     <div className={styles.readmePlaceholder}>No README uploaded.</div>
                 )}
 
-                {/* Update History at very bottom; hide when empty */}
+                {/* Update History */}
                 {updates.length > 0 && (
                     <>
                         <Divider/>
@@ -393,22 +393,42 @@ export default function ModelDetailPage() {
                                             {r.note && <div className={styles.updateNote}><b>Note:</b> {r.note}</div>}
                                             <div className={styles.updateMeta}>
                                                 <b>Details:</b>{' '}
-                                                {r.meta?.changed_fields?.length
-                                                    ? <>Changed
-                                                        fields: <code>{r.meta.changed_fields.join(', ')}</code></>
-                                                    : r.meta
-                                                        ? <pre
-                                                            className={styles.json}>{JSON.stringify(r.meta, null, 2)}</pre>
-                                                        : <span>No additional metadata.</span>}
+                                                {(() => {
+                                                    const mc = r?.meta?.model_change || r?.meta; // 兼容旧数据路径
+                                                    const pv = mc?.prev_values;
+                                                    const nv = mc?.new_values;
+                                                    const fields = pv ? Object.keys(pv) : (mc?.changed_fields || []);
+                                                    if (pv && nv) {
+                                                        const fmt = (v) => (typeof v === 'object' ? JSON.stringify(v) : String(v));
+                                                        return (
+                                                            <div style={{marginTop: 6}}>
+                                                                {fields.map((k) => (
+                                                                    <div key={k} style={{marginBottom: 4}}>
+                                                                        <code>{k}</code>: <span
+                                                                        style={{opacity: .85}}>{fmt(pv[k])}</span> → <b>{fmt(nv[k])}</b>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    if (mc?.changed_fields?.length) {
+                                                        return <>Changed
+                                                            fields: <code>{mc.changed_fields.join(', ')}</code></>;
+                                                    }
+                                                    if (r?.meta) {
+                                                        return <pre
+                                                            className={styles.json}>{JSON.stringify(r.meta, null, 2)}</pre>;
+                                                    }
+                                                    return <span>No additional metadata.</span>;
+                                                })()}
                                             </div>
                                             {r.prev_artifact_uri && (
                                                 <div className={styles.updateOld}>
-                                                    <DownloadOutlined/> Previous artifact:&nbsp;
+                                                    Previous artifact:&nbsp;
                                                     <a href={`${BASE}${r.prev_artifact_uri}`} download>
                                                         {(r.prev_artifact_uri || '').split('/').pop()}
                                                     </a>
                                                     <span className={styles.updateHint}>
-                                                        (You can download the old model; legacy metadata pages are not preserved.)
                                                     </span>
                                                 </div>
                                             )}

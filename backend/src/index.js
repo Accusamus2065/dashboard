@@ -1,3 +1,4 @@
+// index.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -136,6 +137,15 @@ const safeParseArray = v => {
     }
     return null;
 };
+
+// helper: safely remove a file referenced by a stored /uploads URI
+function safeUnlinkByUri(uri) {
+    if (!uri) return;
+    const filename = path.basename(String(uri)); // strips leading /uploads/
+    const fpath = path.join(UPLOAD_DIR, filename);
+    fs.unlink(fpath, () => {
+    }); // ignore ENOENT, etc.
+}
 
 // field-level redaction by role
 function sanitizeModelForRole(modelRec, role) {
@@ -559,11 +569,17 @@ app.put(
                 'baseline_latency_ms', 'baseline_accuracy', 'baseline_f1', 'baseline_auc', 'business_tags'
             ];
             const changedFields = [];
+            const prevValues = {};
+            const newValues = {};
             for (const k of maybeFields) {
                 if (data[k] !== undefined) {
                     const oldVal = rec[k];
                     const newVal = data[k];
-                    if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) changedFields.push(k);
+                    if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+                        changedFields.push(k);
+                        prevValues[k] = oldVal ?? null;
+                        newValues[k] = newVal ?? null;
+                    }
                 }
             }
 
@@ -573,7 +589,10 @@ app.put(
                 changed_fields: changedFields,
                 artifact_changed: artifactChanged,
                 prev_artifact_uri: artifactChanged ? prevArtifact : null,
-                new_artifact_uri: artifactChanged ? rec.artifact_uri : null
+                new_artifact_uri: artifactChanged ? rec.artifact_uri : null,
+                // 仅用于“历史”展示 Basics & Metrics 的前后值（文件不包含）
+                prev_values: Object.keys(prevValues).length ? prevValues : null,
+                new_values: Object.keys(newValues).length ? newValues : null
             };
 
             res.json({updated: rec, change_meta});
@@ -588,12 +607,24 @@ app.delete('/models/:id', authRequired, requireRole('admin'), async (req, res, n
     try {
         const rec = await Model.findByPk(req.params.id);
         if (!rec) return res.sendStatus(404);
-        if (rec.artifact_uri) {
-            const filePath = path.join(__dirname, '../', rec.artifact_uri);
-            fs.unlink(filePath, () => {
-            });
-        }
-        await rec.destroy();
+
+        await sequelize.transaction(async (t) => {
+            // 1) Delete all compliance docs for this model (and their files)
+            const docs = await ComplianceDoc.findAll({where: {model_id: rec.id}, transaction: t});
+            for (const d of docs) safeUnlinkByUri(d.uri);
+            await ComplianceDoc.destroy({where: {model_id: rec.id}, transaction: t});
+
+            // 2) Delete update history rows for this model (avoid other FK issues)
+            await ModelUpdate.destroy({where: {model_id: rec.id}, transaction: t});
+
+            // 3) Remove model artifact/readme files (if any)
+            safeUnlinkByUri(rec.artifact_uri);
+            safeUnlinkByUri(rec.readme_uri);
+
+            // 4) Finally delete the model
+            await rec.destroy({transaction: t});
+        });
+
         res.sendStatus(204);
     } catch (err) {
         next(err);
