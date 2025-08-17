@@ -241,8 +241,8 @@ export default function EditPage() {
                                     icon={<DeleteOutlined/>}
                                     style={actionBtnStyle({
                                         active: isDelMarked,
-                                        color: 'red',        // orange-500（与 Reject 区分）
-                                        borderColor: 'red',  // orange-200
+                                        color: 'red',
+                                        borderColor: 'red',
                                     })}
                                     onClick={() => {
                                         setDeleteQueue(q => {
