@@ -289,23 +289,36 @@ export default function HomePage() {
             title: 'Tags',
             dataIndex: 'business_tags',
             render: (_, m) => {
-                const tags = Array.isArray(m?.business_tags) ? m.business_tags : [];
-                const head = tags.slice(0, 0); // （保持你现有逻辑不动）
-                const more = Math.max(tags.length, 0);
+                const tags = Array.isArray(m?.business_tags) ? m.business_tags.filter(Boolean) : [];
+                const head = tags.slice(0, 4);
+                const rest = tags.slice(4);
+                const hasMore = rest.length > 0;
+
+                if (tags.length === 0) {
+                    return <span style={{color: '#999'}}>No tags</span>;
+                }
+
                 return (
                     <div className={styles.tagsWrap}>
-                        {head.map((t, i) => (<Tag key={i}>{t}</Tag>))}
-                        {more > 0 && (
+                        {head.map((t, i) => (
+                            <Tag key={`head-${i}`}>{t}</Tag>
+                        ))}
+
+                        {hasMore && (
                             <Popover
                                 trigger="click"
+                                overlayStyle={{maxWidth: 420}}
                                 content={
                                     <div className={styles.tagsWrap} style={{maxWidth: 360}}>
-                                        {tags.map((t, i) => <Tag key={`all-${i}`}>{t}</Tag>)}
+                                        {rest.map((t, i) => (
+                                            <Tag key={`rest-${i}`}>{t}</Tag>
+                                        ))}
                                     </div>
                                 }
-                                overlayStyle={{maxWidth: 420}}
                             >
-                                <Tag color="blue">click to view</Tag>
+                                <Tag color="blue" style={{cursor: 'pointer'}}>
+                                    +{rest.length} …
+                                </Tag>
                             </Popover>
                         )}
                     </div>
@@ -321,14 +334,12 @@ export default function HomePage() {
         {
             title: 'Actions',
             dataIndex: 'actions',
-            width: 285,
+            width: 190,
             render: (_, m) => (
                 <div className={styles.actionsWrap} style={{width: '100%'}}>
                     <Button size="small" icon={<EyeOutlined/>} onClick={() => navigate(`/view/${m.id}`)}>View</Button>
                     {canEdit && <Button size="small" icon={<EditOutlined/>}
                                         onClick={() => navigate(`/edit/${m.id}`)}>Edit</Button>}
-                    <Button size="small" icon={<PlayCircleOutlined/>}
-                            onClick={() => navigate(`/predict/${m.id}`)}>Predict</Button>
                     {canDelete && (
                         <Popconfirm
                             title="Confirm delete?"
