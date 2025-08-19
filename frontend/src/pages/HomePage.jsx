@@ -1,12 +1,13 @@
 // frontend/src/pages/HomePage.jsx
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import '@ant-design/v5-patch-for-react-19';
+import dayjs from 'dayjs';
 import {
     Typography, Button, Input, Space, Select, Popconfirm, message, Tag, Divider, Alert,
     Drawer, Checkbox, Slider, DatePicker, Pagination, Badge, Table, Popover
 } from 'antd';
 import {
-    PlusOutlined, EyeOutlined, DeleteOutlined, PlayCircleOutlined, EditOutlined, TeamOutlined,
+    PlusOutlined, EyeOutlined, DeleteOutlined, EditOutlined, TeamOutlined,
     FilterOutlined, ReloadOutlined, SortAscendingOutlined, SearchOutlined, LogoutOutlined
 } from '@ant-design/icons';
 import api from '../services/api';
@@ -20,8 +21,10 @@ const {Search} = Input;
 const {Option} = Select;
 const {RangePicker} = DatePicker;
 
-/* removed updated_* sort choices */
+/* sort 里加入 “按更新时间” 两个选项 */
 const SORT_OPTIONS = [
+    {value: 'updated_at_desc', label: 'Recently updated'},
+    {value: 'updated_at_asc', label: 'Oldest updated'},
     {value: 'name_asc', label: 'Name (A→Z)'},
     {value: 'acc_desc', label: 'Accuracy (high→low)'},
     {value: 'f1_desc', label: 'F1 (high→low)'},
@@ -45,14 +48,13 @@ export default function HomePage() {
 
     // data
     const [items, setItems] = useState([]);
-    const [total, setTotal] = useState(0);             // ✅ 用于“已加载多少模型”的提示条
+    const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
 
     // quick filters
     const [q, setQ] = useState('');
     const [schemaFilter, setSchemaFilter] = useState([]);
     const [riskFilter, setRiskFilter] = useState([]);
-    // license now in Advanced drawer only
     const [licenseFilter, setLicenseFilter] = useState([]);
     const [sortBy, setSortBy] = useState('name_asc');
 
@@ -68,6 +70,9 @@ export default function HomePage() {
     const [maxLatency, setMaxLatency] = useState(undefined);
     const [dateRange, setDateRange] = useState(null);
     const [complianceFilter, setComplianceFilter] = useState('any'); // any|compliant|pending|missing
+
+    // “Updated” 快速预设（与 dateRange 联动）
+    const [updatedPreset, setUpdatedPreset] = useState('any'); // any | 7d | 30d | 90d | custom
 
     // pagination
     const [page, setPage] = useState(1);
@@ -127,8 +132,8 @@ export default function HomePage() {
             };
             const res = await api.get('/models/search', {params});
             setItems(res.data?.items || []);
-            setTotal(res.data?.total || 0);           // ✅ 用于顶部提示
-            setFirstLoadDone(true);                   // ✅ 首次载入完成
+            setTotal(res.data?.total || 0);
+            setFirstLoadDone(true);
         } catch (e) {
             message.error(e.response?.data?.error || 'Failed to load models');
         } finally {
@@ -160,9 +165,9 @@ export default function HomePage() {
             const required = REQUIRED_BY_RISK[m.risk_level] || [];
 
             const uploadedTypes = new Set(docs.map(d => d.type));
-            const missing = required.filter(t => !uploadedTypes.has(t)).length;          // ✅ 未上传任何文件的类型数
-            const pending = docs.filter(d => d.status === 'pending').length;             // ✅ 待审文件数（多少文件就是多少）
-            const complete = missing === 0 && pending === 0;                             // ✅ 完成条件
+            const missing = required.filter(t => !uploadedTypes.has(t)).length;
+            const pending = docs.filter(d => d.status === 'pending').length;
+            const complete = missing === 0 && pending === 0;
 
             setDocStats(prev => ({...prev, [id]: {missing, pending, complete}}));
         } catch {
@@ -186,7 +191,7 @@ export default function HomePage() {
             if (!st) return false;
             if (complianceFilter === 'compliant') return st.complete;
             if (complianceFilter === 'pending') return st.pending > 0;
-            if (complianceFilter === 'missing') return st.missing > 0 && st.pending === 0;
+            if (complianceFilter === 'missing') return st.missing > 0;
             return true;
         });
     }, [items, complianceFilter, docStats]);
@@ -205,21 +210,46 @@ export default function HomePage() {
         setMinAUC(undefined);
         setMaxLatency(undefined);
         setDateRange(null);
+        setUpdatedPreset('any');
         setComplianceFilter('any');
         setSortBy('name_asc');
         setPage(1);
         setPageSize(12);
     };
 
-    const riskColor = r => r === 'high' ? 'red' : r === 'medium' ? 'orange' : 'green';
+    // Updated 预设应用
+    const applyUpdatedPreset = (preset) => {
+        setUpdatedPreset(preset);
+        setPage(1);
+        if (preset === 'any') {
+            setDateRange(null);
+            return;
+        }
+        if (preset === '7d' || preset === '30d' || preset === '90d') {
+            const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90;
+            const end = dayjs();
+            const start = end.subtract(days, 'day').startOf('day');
+            setDateRange([start, end]);
+            return;
+        }
+        // custom：交给 RangePicker 选择
+    };
 
-    /* Present metrics as nice chips instead of a long sentence */
+    const riskColor = r => r === 'high' ? 'red' : r === 'medium' ? 'orange' : 'green';
+    const fmt2 = (v) =>
+        v === null || v === undefined || Number.isNaN(Number(v))
+            ? null
+            : Number(v).toFixed(2);
+
+    /* Metrics chips */
     const metricChips = (m) => {
         const chips = [];
-        if (m.baseline_accuracy != null) chips.push({label: 'Acc', value: m.baseline_accuracy});
-        if (m.baseline_f1 != null) chips.push({label: 'F1', value: m.baseline_f1});
-        if (m.baseline_auc != null) chips.push({label: 'AUC', value: m.baseline_auc});
-        if (m.baseline_latency_ms != null) chips.push({label: 'Lat', value: `${m.baseline_latency_ms}ms`});
+        if (m.baseline_accuracy != null) chips.push({label: 'Acc', value: fmt2(m.baseline_accuracy)});
+        if (m.baseline_f1 != null) chips.push({label: 'F1', value: fmt2(m.baseline_f1)});
+        if (m.baseline_auc != null) chips.push({label: 'AUC', value: fmt2(m.baseline_auc)});
+        if (m.baseline_latency_ms != null)
+            chips.push({label: 'Lat', value: `${Number(m.baseline_latency_ms).toLocaleString()}ms`});
+
         if (chips.length === 0) return <Text type="secondary">—</Text>;
         return (
             <div className={styles.metricGroup}>
@@ -254,20 +284,14 @@ export default function HomePage() {
         {
             title: 'Compliance',
             dataIndex: 'compliance',
+            width: 120,
             render: (_, m) => {
                 const st = docStats[m.id];
                 if (!st) return <Text type="secondary">Loading…</Text>;
-
-                if (st.missing === 0 && st.pending === 0) {
-                    return <Badge status="success" text="Complete"/>;
-                }
-                return (
-                    <Space size={6} wrap>
-                        {st.missing > 0 &&
-                            <Badge status="error" text={`Missing ${st.missing}`} style={{marginRight: 5}}/>}
-                        {st.pending > 0 && <Badge status="warning" text={`Pending ${st.pending}`}/>}
-                    </Space>
-                );
+                const incomplete = (st.missing > 0) || (st.pending > 0);
+                return incomplete
+                    ? <Badge status="error" text="Incomplete"/>
+                    : <Badge status="success" text="Complete"/>;
             },
         },
         {
@@ -289,36 +313,23 @@ export default function HomePage() {
             title: 'Tags',
             dataIndex: 'business_tags',
             render: (_, m) => {
-                const tags = Array.isArray(m?.business_tags) ? m.business_tags.filter(Boolean) : [];
-                const head = tags.slice(0, 4);
-                const rest = tags.slice(4);
-                const hasMore = rest.length > 0;
-
-                if (tags.length === 0) {
-                    return <span style={{color: '#999'}}>No tags</span>;
-                }
-
+                const tags = Array.isArray(m?.business_tags) ? m.business_tags : [];
+                const head = tags.slice(0, 0); // 保持你先前的显示策略
+                const more = Math.max(tags.length, 0);
                 return (
                     <div className={styles.tagsWrap}>
-                        {head.map((t, i) => (
-                            <Tag key={`head-${i}`}>{t}</Tag>
-                        ))}
-
-                        {hasMore && (
+                        {head.map((t, i) => (<Tag key={i}>{t}</Tag>))}
+                        {more > 0 && (
                             <Popover
                                 trigger="click"
-                                overlayStyle={{maxWidth: 420}}
                                 content={
                                     <div className={styles.tagsWrap} style={{maxWidth: 360}}>
-                                        {rest.map((t, i) => (
-                                            <Tag key={`rest-${i}`}>{t}</Tag>
-                                        ))}
+                                        {tags.map((t, i) => <Tag key={`all-${i}`}>{t}</Tag>)}
                                     </div>
                                 }
+                                overlayStyle={{maxWidth: 420}}
                             >
-                                <Tag color="blue" style={{cursor: 'pointer'}}>
-                                    +{rest.length} …
-                                </Tag>
+                                <Tag color="blue">click to view</Tag>
                             </Popover>
                         )}
                     </div>
@@ -327,7 +338,7 @@ export default function HomePage() {
         },
         {
             title: 'Metrics',
-            width: 380,
+            width: 320,
             dataIndex: 'metrics',
             render: (_, m) => metricChips(m),
         },
@@ -347,7 +358,6 @@ export default function HomePage() {
                                 try {
                                     await api.delete(`/models/${m.id}`);
                                     message.success('Deleted');
-                                    // 重新拉取列表（docStats 对应项让它自然失效即可）
                                     await load();
                                 } catch (e) {
                                     message.error(e.response?.data?.error || 'Delete failed');
@@ -479,7 +489,7 @@ export default function HomePage() {
                     pageSize={pageSize}
                     total={filteredItems.length}
                     showSizeChanger
-                    pageSizeOptions={['8', '12', '24', '48', '96']}
+                    pageSizeOptions={['12', '24', '48', '96']}
                     onChange={(p, ps) => {
                         setPage(p);
                         setPageSize(ps);
@@ -496,20 +506,6 @@ export default function HomePage() {
                 width={420}
             >
                 <Space direction="vertical" size="large" style={{width: '100%'}}>
-                    {/* 1) Data Dependencies */}
-                    <div>
-                        <Text strong>Data Dependencies</Text>
-                        <div style={{marginTop: 8}}>
-                            <Checkbox checked={hasTrain} onChange={e => setHasTrain(e.target.checked)}>
-                                Has training data
-                            </Checkbox>
-                        </div>
-                        <div style={{marginTop: 4}}>
-                            <Checkbox checked={hasVal} onChange={e => setHasVal(e.target.checked)}>
-                                Has validation data
-                            </Checkbox>
-                        </div>
-                    </div>
 
                     <div>
                         <Text strong>Compliance</Text>
@@ -520,9 +516,9 @@ export default function HomePage() {
                                 style={{width: '100%'}}
                                 options={[
                                     {value: 'any', label: 'Any'},
-                                    {value: 'compliant', label: 'Compliant only'},
-                                    {value: 'pending', label: 'Pending only'},
-                                    {value: 'missing', label: 'Missing only'},
+                                    {value: 'compliant', label: 'Complete'},
+                                    {value: 'pending', label: 'Has pending'},
+                                    {value: 'missing', label: 'Has missing'},
                                 ]}
                             />
                         </div>
@@ -611,7 +607,11 @@ export default function HomePage() {
                         <RangePicker
                             style={{marginTop: 8, width: '100%'}}
                             value={dateRange}
-                            onChange={setDateRange}
+                            onChange={(v) => {
+                                setDateRange(v);
+                                setUpdatedPreset(v && v.length === 2 && v[0] && v[1] ? 'custom' : 'any');
+                                setPage(1);
+                            }}
                             allowEmpty={[true, true]}
                         />
                     </div>

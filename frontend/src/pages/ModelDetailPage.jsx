@@ -189,7 +189,7 @@ export default function ModelDetailPage() {
             title: 'Model', render: (_, r) => (
                 <Space size={6}>
                     <span>{r.name_snapshot || model?.name}</span>
-                    {r.version_snapshot && <Tag>Ver. {r.version_snapshot}</Tag>}
+                    {r.version_snapshot && <Tag>{r.version_snapshot}</Tag>}
                 </Space>
             )
         },
@@ -239,7 +239,7 @@ export default function ModelDetailPage() {
                             <Title level={3} style={{margin: 0}}>{model.name}</Title>
                         )}
                         {model.version && <Tag className={styles.versionTag}
-                                               style={{position: 'relative', top: -2}}>Ver. {model.version}</Tag>}
+                                               style={{position: 'relative', top: -2}}>{model.version}</Tag>}
                     </div>
                 </div>
 

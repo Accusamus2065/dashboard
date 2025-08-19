@@ -109,17 +109,17 @@ sequelize.sync({alter: true})
     .then(async () => {
         console.log('Database synced with alter');
 
-        const {ADMIN_EMAIL, ADMIN_PASSWORD} = process.env;
-        if (ADMIN_EMAIL && ADMIN_PASSWORD) {
-            const existing = await User.findOne({where: {email: ADMIN_EMAIL}});
-            if (!existing) {
-                const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
-                await User.create({email: ADMIN_EMAIL, password_hash: hash, role: 'admin'});
-                console.log(`Seeded admin: ${ADMIN_EMAIL}`);
-            }
-        } else {
-            console.log('Tip: set ADMIN_EMAIL & ADMIN_PASSWORD in .env to seed an admin');
-        }
+        // const {ADMIN_EMAIL, ADMIN_PASSWORD} = process.env;
+        // if (ADMIN_EMAIL && ADMIN_PASSWORD) {
+        //     const existing = await User.findOne({where: {email: ADMIN_EMAIL}});
+        //     if (!existing) {
+        //         const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
+        //         await User.create({email: ADMIN_EMAIL, password_hash: hash, role: 'admin'});
+        //         console.log(`Seeded admin: ${ADMIN_EMAIL}`);
+        //     }
+        // } else {
+        //     console.log('Tip: set ADMIN_EMAIL & ADMIN_PASSWORD in .env to seed an admin');
+        // }
     })
     .catch(console.error);
 

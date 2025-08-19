@@ -91,6 +91,7 @@
 
 /* ===== Table ===== */
 .tableWrap :global(.ant-table) {
+    margin-top: 10px;
     border-radius: 14px;
     overflow: hidden;
 }
@@ -153,7 +154,7 @@
 
 /* ===== Footer (sticky at bottom) ===== */
 .footer {
-    padding: 8px 22px 16px;
+    padding: 8px 22px 20px;
     display: flex;
     justify-content: center;
 }
