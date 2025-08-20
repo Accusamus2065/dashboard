@@ -96,11 +96,10 @@ export default function RegisterPage() {
         const payload = {
             email: values.email,
             password: values.password,
-            security_questions: [
-                {question: values.q1, answer: values.a1},
-                {question: values.q2, answer: values.a2},
-                {question: values.q3, answer: values.a3},
-            ].filter(x => x.question && x.answer),
+            security_questions: [{question: values.q1, answer: values.a1}, {
+                question: values.q2,
+                answer: values.a2
+            }, {question: values.q3, answer: values.a3},].filter(x => x.question && x.answer),
         };
         try {
             await api.post('/auth/register', payload);
@@ -137,15 +136,13 @@ export default function RegisterPage() {
             const msgs = [...new Set(byName.get(name) || [])];
             if (msgs.length) {
                 message.error({
-                    content: <div style={{whiteSpace: 'pre-line'}}>{msgs.join('\n')}</div>,
-                    duration: 4,
+                    content: <div style={{whiteSpace: 'pre-line'}}>{msgs.join('\n')}</div>, duration: 4,
                 });
             }
         }
     };
 
-    return (
-        <div className={styles.wrapper}>
+    return (<div className={styles.wrapper}>
             <Card className={`${styles.card} ${styles.fadeIn}`} variant={"borderless"}>
                 <header className={styles.header}>
                     <Title level={3} style={{margin: 0}}>Create account</Title>
@@ -161,8 +158,8 @@ export default function RegisterPage() {
                     requiredMark={false}
                     autoComplete="on"
                     size="large"
-                    validateTrigger="onSubmit"   // only validate on submit
-                    noValidate                    // disable browser native validation
+                    validateTrigger="onSubmit"
+                    noValidate
                 >
                     {/* Email */}
                     <Form.Item
@@ -211,15 +208,14 @@ export default function RegisterPage() {
                                     <Select
                                         className={styles.select}
                                         placeholder=""
-                                        showSearch={false}    // <- non-typable
+                                        showSearch={false}
                                         allowClear
                                         aria-label="Security question 1"
                                         onDropdownOpenChange={setQ1Open}
                                         onChange={(val) => form.setFieldValue('q1', val)}
                                     >
                                         {availableQuestions('q1').map(q => (
-                                            <Option key={`q1-${q}`} value={q}>{q}</Option>
-                                        ))}
+                                            <Option key={`q1-${q}`} value={q}>{q}</Option>))}
                                     </Select>
                                 </div>
                                 <span ref={refs.q1.label} className={styles.floatLabel}>Question 1</span>
@@ -248,15 +244,14 @@ export default function RegisterPage() {
                                     <Select
                                         className={styles.select}
                                         placeholder=""
-                                        showSearch={false}    // <- non-typable
+                                        showSearch={false}
                                         allowClear
                                         aria-label="Security question 2"
                                         onDropdownOpenChange={setQ2Open}
                                         onChange={(val) => form.setFieldValue('q2', val)}
                                     >
                                         {availableQuestions('q2').map(q => (
-                                            <Option key={`q2-${q}`} value={q}>{q}</Option>
-                                        ))}
+                                            <Option key={`q2-${q}`} value={q}>{q}</Option>))}
                                     </Select>
                                 </div>
                                 <span ref={refs.q2.label} className={styles.floatLabel}>Question 2</span>
@@ -285,15 +280,14 @@ export default function RegisterPage() {
                                     <Select
                                         className={styles.select}
                                         placeholder=""
-                                        showSearch={false}    // <- non-typable
+                                        showSearch={false}
                                         allowClear
                                         aria-label="Security question 3"
                                         onDropdownOpenChange={setQ3Open}
                                         onChange={(val) => form.setFieldValue('q3', val)}
                                     >
                                         {availableQuestions('q3').map(q => (
-                                            <Option key={`q3-${q}`} value={q}>{q}</Option>
-                                        ))}
+                                            <Option key={`q3-${q}`} value={q}>{q}</Option>))}
                                     </Select>
                                 </div>
                                 <span ref={refs.q3.label} className={styles.floatLabel}>Question 3</span>
@@ -317,6 +311,5 @@ export default function RegisterPage() {
                     </div>
                 </Form>
             </Card>
-        </div>
-    );
+        </div>);
 }

@@ -1,16 +1,8 @@
+// frontend/src/pages/ModelDetailPage.jsx
 import React, {useEffect, useState, useMemo} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import {
-    Descriptions,
-    Spin,
-    Button,
-    message,
-    Typography,
-    Divider,
-    Tag,
-    Table,
-    Card,
-    Space,
+    Descriptions, Spin, Button, message, Typography, Divider, Tag, Table, Card, Space,
 } from 'antd';
 import {ArrowLeftOutlined, FilePdfOutlined, MailOutlined, DownloadOutlined} from '@ant-design/icons';
 import {useParams, useNavigate} from 'react-router-dom';
@@ -29,8 +21,7 @@ import styles from './ModelDetailPage.module.css';
 const {Title, Text} = Typography;
 
 const sanitizeSchema = {
-    ...defaultSchema,
-    attributes: {
+    ...defaultSchema, attributes: {
         ...defaultSchema.attributes,
         img: [...(defaultSchema.attributes?.img || []), 'src', 'alt', 'title', 'width', 'height', 'loading'],
         a: [...(defaultSchema.attributes?.a || []), 'href', 'title', 'target', 'rel'],
@@ -115,10 +106,7 @@ export default function ModelDetailPage() {
     }, [id]);
 
     const approvedDocs = useMemo(() => (docs || []).filter(d => d.status === 'approved'), [docs]);
-    const approvedPdfDocs = useMemo(
-        () => approvedDocs.filter(d => /\.pdf(\?|$)/i.test(d.uri || '')),
-        [approvedDocs]
-    );
+    const approvedPdfDocs = useMemo(() => approvedDocs.filter(d => /\.pdf(\?|$)/i.test(d.uri || '')), [approvedDocs]);
 
     const licenseFull = useMemo(() => {
         const raw = model?.license;
@@ -149,25 +137,24 @@ export default function ModelDetailPage() {
         return arr;
     }, [model]);
 
-    const docColumns = [
-        {title: 'ID', dataIndex: 'id', key: 'id', width: 48, align: 'center'},
-        {title: 'Type', dataIndex: 'type', key: 'type', render: t => <Tag>{t}</Tag>},
-        {
-            title: 'File',
-            dataIndex: 'uri',
-            key: 'uri',
-            render: (u) => (
-                <a href={`${BASE}${u}`} target="_blank" rel="noreferrer">
-                    {u.split('/').pop()}
-                </a>
-            )
-        },
-        {title: 'Reviewer', key: 'reviewer', render: (_, r) => r.reviewer?.email || '—'},
-        {
-            title: 'Reviewed At', dataIndex: 'reviewed_at', key: 'reviewed_at',
-            render: v => (v ? new Date(v).toLocaleString() : '—')
-        }
-    ];
+    const docColumns = [{title: 'ID', dataIndex: 'id', key: 'id', width: 48, align: 'center'}, {
+        title: 'Type',
+        dataIndex: 'type',
+        key: 'type',
+        render: t => <Tag>{t}</Tag>
+    }, {
+        title: 'File',
+        dataIndex: 'uri',
+        key: 'uri',
+        render: (u) => (<a href={`${BASE}${u}`} target="_blank" rel="noreferrer">
+                {u.split('/').pop()}
+            </a>)
+    }, {title: 'Reviewer', key: 'reviewer', render: (_, r) => r.reviewer?.email || '—'}, {
+        title: 'Reviewed At',
+        dataIndex: 'reviewed_at',
+        key: 'reviewed_at',
+        render: v => (v ? new Date(v).toLocaleString() : '—')
+    }];
 
     // Update type tags (English)
     const typeTag = (t) => {
@@ -181,37 +168,33 @@ export default function ModelDetailPage() {
         return <Tag color={it.color}>{it.text}</Tag>;
     };
 
-    const updateColumns = [
-        {title: 'Time', dataIndex: 'created_at', render: v => new Date(v).toLocaleString()},
-        {title: 'Actor', dataIndex: ['actor', 'email'], render: (v) => v || '—'},
-        {title: 'Type', dataIndex: 'update_type', render: typeTag},
-        {
-            title: 'Model', render: (_, r) => (
-                <Space size={6}>
-                    <span>{r.name_snapshot || model?.name}</span>
-                    {r.version_snapshot && <Tag>{r.version_snapshot}</Tag>}
-                </Space>
-            )
-        },
-        {
-            title: 'Old artifact', render: (_, r) => (
-                r.prev_artifact_uri
-                    ? <a href={`${BASE}${r.prev_artifact_uri}`} download><DownloadOutlined/> Download</a>
-                    : <Text type="secondary">—</Text>
-            ),
-        },
-    ];
+    const updateColumns = [{
+        title: 'Time',
+        dataIndex: 'created_at',
+        render: v => new Date(v).toLocaleString()
+    }, {title: 'Actor', dataIndex: ['actor', 'email'], render: (v) => v || '—'}, {
+        title: 'Type',
+        dataIndex: 'update_type',
+        render: typeTag
+    }, {
+        title: 'Model', render: (_, r) => (<Space size={6}>
+                <span>{r.name_snapshot || model?.name}</span>
+                {r.version_snapshot && <Tag>{r.version_snapshot}</Tag>}
+            </Space>)
+    }, {
+        title: 'Old artifact',
+        render: (_, r) => (r.prev_artifact_uri ?
+                <a href={`${BASE}${r.prev_artifact_uri}`} download><DownloadOutlined/> Download</a> :
+                <Text type="secondary">—</Text>),
+    },];
 
     if (loading || !model) {
-        return (
-            <div className={styles.wrapper}>
+        return (<div className={styles.wrapper}>
                 <Spin/>
-            </div>
-        );
+            </div>);
     }
 
-    return (
-        <div className={styles.wrapper}>
+    return (<div className={styles.wrapper}>
             <Card className={styles.card} bordered={false}>
                 {/* Header */}
                 <div className={styles.header}>
@@ -224,8 +207,7 @@ export default function ModelDetailPage() {
                     </Button>
 
                     <div className={styles.titleBox}>
-                        {model.artifact_uri ? (
-                            <Title level={3} style={{margin: 0}}>
+                        {model.artifact_uri ? (<Title level={3} style={{margin: 0}}>
                                 <a
                                     href={`${BASE}${model.artifact_uri}`}
                                     download
@@ -234,10 +216,7 @@ export default function ModelDetailPage() {
                                 >
                                     {model.name}
                                 </a>
-                            </Title>
-                        ) : (
-                            <Title level={3} style={{margin: 0}}>{model.name}</Title>
-                        )}
+                            </Title>) : (<Title level={3} style={{margin: 0}}>{model.name}</Title>)}
                         {model.version && <Tag className={styles.versionTag}
                                                style={{position: 'relative', top: -2}}>{model.version}</Tag>}
                     </div>
@@ -247,37 +226,28 @@ export default function ModelDetailPage() {
 
                 {/* Info */}
                 <Descriptions bordered column={4} className={styles.desc} labelStyle={{width: 160}}>
-                    {metricCells.map((m, idx) => (
-                        <Descriptions.Item key={`metric-${idx}`} label={m.label}>
+                    {metricCells.map((m, idx) => (<Descriptions.Item key={`metric-${idx}`} label={m.label}>
                             {m.value}
-                        </Descriptions.Item>
-                    ))}
+                        </Descriptions.Item>))}
 
                     <Descriptions.Item label="Input Schema" span={2}>
                         {model.input_schema || <Text type="secondary">—</Text>}
                     </Descriptions.Item>
 
                     <Descriptions.Item label="Risk Level" span={2}>
-                        {model.risk_level
-                            ? <Tag
-                                color={model.risk_level === 'high' ? 'red' : model.risk_level === 'medium' ? 'orange' : 'green'}>
-                                {model.risk_level}
-                            </Tag>
-                            : <Text type="secondary">—</Text>}
+                        {model.risk_level ? <Tag
+                            color={model.risk_level === 'high' ? 'red' : model.risk_level === 'medium' ? 'orange' : 'green'}>
+                            {model.risk_level}
+                        </Tag> : <Text type="secondary">—</Text>}
                     </Descriptions.Item>
 
                     <Descriptions.Item label="Owner Contact" span={2}>
-                        {ownerParsed?.email
-                            ? (
-                                <Space size={8}>
-                                    <span>{ownerParsed.name}</span>
-                                    <a href={`mailto:${ownerParsed.email}`} style={{marginLeft: 5}}>
-                                        <MailOutlined/> {ownerParsed.email}
-                                    </a>
-                                </Space>
-                            )
-                            : (ownerParsed?.raw || <Text type="secondary">—</Text>)
-                        }
+                        {ownerParsed?.email ? (<Space size={8}>
+                                <span>{ownerParsed.name}</span>
+                                <a href={`mailto:${ownerParsed.email}`} style={{marginLeft: 5}}>
+                                    <MailOutlined/> {ownerParsed.email}
+                                </a>
+                            </Space>) : (ownerParsed?.raw || <Text type="secondary">—</Text>)}
                     </Descriptions.Item>
 
                     <Descriptions.Item label="License" span={2}>
@@ -289,19 +259,16 @@ export default function ModelDetailPage() {
                             <Space wrap size={[6, 6]}>
                                 {model.business_tags.map((t, i) => <Tag key={i}>{t}</Tag>)}
                             </Space>
-                        </Descriptions.Item>
-                    )}
+                        </Descriptions.Item>)}
 
                     <Descriptions.Item label="Brief Description" span={4}>
-                        {model.description
-                            ? <div style={{whiteSpace: 'pre-line'}}>{model.description}</div>
-                            : <Text type="secondary">—</Text>}
+                        {model.description ? <div style={{whiteSpace: 'pre-line'}}>{model.description}</div> :
+                            <Text type="secondary">—</Text>}
                     </Descriptions.Item>
                 </Descriptions>
 
                 {/* Approved Compliance Docs */}
-                {approvedDocs.length > 0 && (
-                    <>
+                {approvedDocs.length > 0 && (<>
                         <Divider/>
                         <Title level={4} style={{marginBottom: 12}}>Approved Compliance Documents</Title>
                         <div className={styles.tableWrap}>
@@ -314,8 +281,7 @@ export default function ModelDetailPage() {
                             />
                         </div>
 
-                        {approvedPdfDocs.length > 0 && (
-                            <>
+                        {approvedPdfDocs.length > 0 && (<>
                                 <Divider/>
                                 <div className={styles.pdfHeader}>
                                     <Title level={5} style={{margin: 0}}>
@@ -324,28 +290,22 @@ export default function ModelDetailPage() {
                                     <Text type="secondary">Approved PDFs are rendered inline below.</Text>
                                 </div>
                                 <div className={styles.pdfGrid}>
-                                    {approvedPdfDocs.map((d) => (
-                                        <div key={d.id} className={styles.pdfItem}>
+                                    {approvedPdfDocs.map((d) => (<div key={d.id} className={styles.pdfItem}>
                                             <iframe title={`pdf-${d.id}`} src={`${BASE}${d.uri}`}
                                                     className={styles.pdfFrame}/>
                                             <div className={styles.pdfCaption}>
                                                 <span className={styles.pdfName}>{(d.uri || '').split('/').pop()}</span>
                                                 <Tag size="small">{d.type}</Tag>
                                             </div>
-                                        </div>
-                                    ))}
+                                        </div>))}
                                 </div>
-                            </>
-                        )}
-                    </>
-                )}
+                            </>)}
+                    </>)}
 
                 {/* README */}
                 <Divider/>
                 <Title level={4} style={{marginBottom: 12}}>README</Title>
-                {model.readme_uri ? (
-                    isReadmePdf ? (
-                        <div className={styles.pdfItem} style={{marginTop: 0}}>
+                {model.readme_uri ? (isReadmePdf ? (<div className={styles.pdfItem} style={{marginTop: 0}}>
                             <iframe
                                 title="readme-pdf"
                                 src={`${BASE}${model.readme_uri}`}
@@ -355,9 +315,7 @@ export default function ModelDetailPage() {
                                 <span className={styles.pdfName}>{(model.readme_uri || '').split('/').pop()}</span>
                                 <Tag size="small">PDF</Tag>
                             </div>
-                        </div>
-                    ) : (
-                        <article className={`${styles.readme} markdown-body`}>
+                        </div>) : (<article className={`${styles.readme} markdown-body`}>
                             <ReactMarkdown
                                 remarkPlugins={[remarkGfm]}
                                 rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
@@ -370,15 +328,10 @@ export default function ModelDetailPage() {
                             >
                                 {readmeText}
                             </ReactMarkdown>
-                        </article>
-                    )
-                ) : (
-                    <div className={styles.readmePlaceholder}>No README uploaded.</div>
-                )}
+                        </article>)) : (<div className={styles.readmePlaceholder}>No README uploaded.</div>)}
 
                 {/* Update History */}
-                {updates.length > 0 && (
-                    <>
+                {updates.length > 0 && (<>
                         <Divider/>
                         <Title level={4} style={{marginBottom: 10}}>Update History</Title>
                         <div className={styles.tableWrap}>
@@ -388,28 +341,24 @@ export default function ModelDetailPage() {
                                 columns={updateColumns}
                                 pagination={false}
                                 expandable={{
-                                    expandedRowRender: (r) => (
-                                        <div className={styles.updateDetail}>
+                                    expandedRowRender: (r) => (<div className={styles.updateDetail}>
                                             {r.note && <div className={styles.updateNote}><b>Note:</b> {r.note}</div>}
                                             <div className={styles.updateMeta}>
                                                 <b>Details:</b>{' '}
                                                 {(() => {
-                                                    const mc = r?.meta?.model_change || r?.meta; // 兼容旧数据路径
+                                                    const mc = r?.meta?.model_change || r?.meta;
                                                     const pv = mc?.prev_values;
                                                     const nv = mc?.new_values;
                                                     const fields = pv ? Object.keys(pv) : (mc?.changed_fields || []);
                                                     if (pv && nv) {
                                                         const fmt = (v) => (typeof v === 'object' ? JSON.stringify(v) : String(v));
-                                                        return (
-                                                            <div style={{marginTop: 6}}>
+                                                        return (<div style={{marginTop: 6}}>
                                                                 {fields.map((k) => (
                                                                     <div key={k} style={{marginBottom: 4}}>
                                                                         <code>{k}</code>: <span
                                                                         style={{opacity: .85}}>{fmt(pv[k])}</span> → <b>{fmt(nv[k])}</b>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        );
+                                                                    </div>))}
+                                                            </div>);
                                                     }
                                                     if (mc?.changed_fields?.length) {
                                                         return <>Changed
@@ -422,24 +371,19 @@ export default function ModelDetailPage() {
                                                     return <span>No additional metadata.</span>;
                                                 })()}
                                             </div>
-                                            {r.prev_artifact_uri && (
-                                                <div className={styles.updateOld}>
+                                            {r.prev_artifact_uri && (<div className={styles.updateOld}>
                                                     Previous artifact:&nbsp;
                                                     <a href={`${BASE}${r.prev_artifact_uri}`} download>
                                                         {(r.prev_artifact_uri || '').split('/').pop()}
                                                     </a>
                                                     <span className={styles.updateHint}>
                                                     </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )
+                                                </div>)}
+                                        </div>)
                                 }}
                             />
                         </div>
-                    </>
-                )}
+                    </>)}
             </Card>
-        </div>
-    );
+        </div>);
 }

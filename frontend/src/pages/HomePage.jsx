@@ -3,12 +3,36 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import dayjs from 'dayjs';
 import {
-    Typography, Button, Input, Space, Select, Popconfirm, message, Tag, Divider, Alert,
-    Drawer, Checkbox, Slider, DatePicker, Pagination, Badge, Table, Popover
+    Typography,
+    Button,
+    Input,
+    Space,
+    Select,
+    Popconfirm,
+    message,
+    Tag,
+    Divider,
+    Alert,
+    Drawer,
+    Checkbox,
+    Slider,
+    DatePicker,
+    Pagination,
+    Badge,
+    Table,
+    Popover
 } from 'antd';
 import {
-    PlusOutlined, EyeOutlined, DeleteOutlined, EditOutlined, TeamOutlined,
-    FilterOutlined, ReloadOutlined, SortAscendingOutlined, SearchOutlined, LogoutOutlined
+    PlusOutlined,
+    EyeOutlined,
+    DeleteOutlined,
+    EditOutlined,
+    TeamOutlined,
+    FilterOutlined,
+    ReloadOutlined,
+    SortAscendingOutlined,
+    SearchOutlined,
+    LogoutOutlined
 } from '@ant-design/icons';
 import api from '../services/api';
 import {SCHEMA_MODES, RISK_LEVELS, LICENSES} from '../constants/constant';
@@ -21,21 +45,16 @@ const {Search} = Input;
 const {Option} = Select;
 const {RangePicker} = DatePicker;
 
-/* sort 里加入 “按更新时间” 两个选项 */
-const SORT_OPTIONS = [
-    {value: 'updated_at_desc', label: 'Recently updated'},
-    {value: 'updated_at_asc', label: 'Oldest updated'},
-    {value: 'name_asc', label: 'Name (A→Z)'},
-    {value: 'acc_desc', label: 'Accuracy (high→low)'},
-    {value: 'f1_desc', label: 'F1 (high→low)'},
-    {value: 'auc_desc', label: 'AUC (high→low)'},
-    {value: 'latency_asc', label: 'Latency (low→high)'},
-];
+const SORT_OPTIONS = [{value: 'updated_at_desc', label: 'Recently updated'}, {
+    value: 'updated_at_asc',
+    label: 'Oldest updated'
+}, {value: 'name_asc', label: 'Name (A→Z)'}, {value: 'acc_desc', label: 'Accuracy (high→low)'}, {
+    value: 'f1_desc',
+    label: 'F1 (high→low)'
+}, {value: 'auc_desc', label: 'AUC (high→low)'}, {value: 'latency_asc', label: 'Latency (low→high)'},];
 
 const REQUIRED_BY_RISK = {
-    high: ['FRIA', 'DPIA', 'PRIVACY'],
-    medium: ['PRIVACY'],
-    low: []
+    high: ['FRIA', 'DPIA', 'PRIVACY'], medium: ['PRIVACY'], low: []
 };
 
 export default function HomePage() {
@@ -71,10 +90,8 @@ export default function HomePage() {
     const [dateRange, setDateRange] = useState(null);
     const [complianceFilter, setComplianceFilter] = useState('any'); // any|compliant|pending|missing
 
-    // “Updated” 快速预设（与 dateRange 联动）
     const [updatedPreset, setUpdatedPreset] = useState('any'); // any | 7d | 30d | 90d | custom
 
-    // pagination
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(12);
 
@@ -93,9 +110,7 @@ export default function HomePage() {
     const [firstLoadDone, setFirstLoadDone] = useState(false);
 
     const licenseOptions = useMemo(() => {
-        return (LICENSES || []).map(x =>
-            typeof x === 'string' ? {label: x, value: x} : x
-        );
+        return (LICENSES || []).map(x => typeof x === 'string' ? {label: x, value: x} : x);
     }, []);
 
     useEffect(() => {
@@ -112,24 +127,29 @@ export default function HomePage() {
     const load = async () => {
         setLoading(true);
         try {
+            const needClientSidePaging = complianceFilter !== 'any';
+
             const params = {
                 q: q || undefined,
                 schema: schemaFilter.join(',') || undefined,
                 risk: riskFilter.join(',') || undefined,
-                license: licenseFilter.join(',') || undefined,
-                ...(tagFilterAll.length ? {tags: tagFilterAll.join(','), tagsMode: 'all'}
-                    : tagFilterAny.length ? {tags: tagFilterAny.join(','), tagsMode: 'any'}
-                        : {}),
+                license: licenseFilter.join(',') || undefined, ...(tagFilterAll.length ? {
+                    tags: tagFilterAll.join(','),
+                    tagsMode: 'all'
+                } : tagFilterAny.length ? {tags: tagFilterAny.join(','), tagsMode: 'any'} : {}),
                 hasTrain: hasTrain || undefined,
                 hasVal: hasVal || undefined,
-                minAcc, minF1, minAUC, maxLatency,
-                ...(dateRange && dateRange.length === 2 ? {
-                    dateFrom: dateRange[0]?.format('YYYY-MM-DD'),
-                    dateTo: dateRange[1]?.format('YYYY-MM-DD'),
+                minAcc,
+                minF1,
+                minAUC,
+                maxLatency, ...(dateRange && dateRange.length === 2 ? {
+                    dateFrom: dateRange[0]?.format('YYYY-MM-DD'), dateTo: dateRange[1]?.format('YYYY-MM-DD'),
                 } : {}),
                 sort: sortBy,
-                page, pageSize
+                page: needClientSidePaging ? 1 : page,
+                pageSize: needClientSidePaging ? 10000 : pageSize,
             };
+
             const res = await api.get('/models/search', {params});
             setItems(res.data?.items || []);
             setTotal(res.data?.total || 0);
@@ -144,13 +164,7 @@ export default function HomePage() {
     useEffect(() => {
         load();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [
-        q, schemaFilter, riskFilter, licenseFilter, sortBy,
-        tagFilterAny, tagFilterAll,
-        hasTrain, hasVal,
-        minAcc, minF1, minAUC, maxLatency,
-        dateRange, page, pageSize
-    ]);
+    }, [q, schemaFilter, riskFilter, licenseFilter, sortBy, tagFilterAny, tagFilterAll, hasTrain, hasVal, minAcc, minF1, minAUC, maxLatency, dateRange, page, pageSize, complianceFilter]);
 
     const [docStats, setDocStats] = useState({});
     const inFlight = useRef(new Set());
@@ -177,13 +191,11 @@ export default function HomePage() {
         }
     };
 
-    // 对当前结果里的模型生成/补全 doc 统计（缓存一次即可）
     useEffect(() => {
         (items || []).forEach(m => fetchDocStat(m));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [items]);
 
-    /** ===== 依赖 docStats 的前端合规筛选 ===== */
     const filteredItems = useMemo(() => {
         if (complianceFilter === 'any') return items;
         return items.filter(m => {
@@ -195,6 +207,15 @@ export default function HomePage() {
             return true;
         });
     }, [items, complianceFilter, docStats]);
+
+    const needClientSidePaging = complianceFilter !== 'any';
+    const tableData = useMemo(() => {
+        if (!needClientSidePaging) return filteredItems;
+        const start = (page - 1) * pageSize;
+        return filteredItems.slice(start, start + pageSize);
+    }, [filteredItems, needClientSidePaging, page, pageSize]);
+
+    const effectiveTotal = needClientSidePaging ? filteredItems.length : total;
 
     const resetAll = () => {
         setQ('');
@@ -217,7 +238,6 @@ export default function HomePage() {
         setPageSize(12);
     };
 
-    // Updated 预设应用
     const applyUpdatedPreset = (preset) => {
         setUpdatedPreset(preset);
         setPage(1);
@@ -232,148 +252,104 @@ export default function HomePage() {
             setDateRange([start, end]);
             return;
         }
-        // custom：交给 RangePicker 选择
     };
 
-    const riskColor = r => r === 'high' ? 'red' : r === 'medium' ? 'orange' : 'green';
-    const fmt2 = (v) =>
-        v === null || v === undefined || Number.isNaN(Number(v))
-            ? null
-            : Number(v).toFixed(2);
+    useEffect(() => {
+        const maxPage = Math.max(1, Math.ceil((effectiveTotal || 0) / (pageSize || 1)));
+        if (page > maxPage) setPage(maxPage);
+    }, [effectiveTotal, pageSize, page]);
 
-    /* Metrics chips */
+    const riskColor = r => r === 'high' ? 'red' : r === 'medium' ? 'orange' : 'green';
+    const fmt2 = (v) => v === null || v === undefined || Number.isNaN(Number(v)) ? null : Number(v).toFixed(2);
+
     const metricChips = (m) => {
         const chips = [];
         if (m.baseline_accuracy != null) chips.push({label: 'Acc', value: fmt2(m.baseline_accuracy)});
         if (m.baseline_f1 != null) chips.push({label: 'F1', value: fmt2(m.baseline_f1)});
         if (m.baseline_auc != null) chips.push({label: 'AUC', value: fmt2(m.baseline_auc)});
-        if (m.baseline_latency_ms != null)
-            chips.push({label: 'Lat', value: `${Number(m.baseline_latency_ms).toLocaleString()}ms`});
+        if (m.baseline_latency_ms != null) chips.push({
+            label: 'Lat',
+            value: `${Number(m.baseline_latency_ms).toLocaleString()}ms`
+        });
 
         if (chips.length === 0) return <Text type="secondary">—</Text>;
-        return (
-            <div className={styles.metricGroup}>
-                {chips.map((c, i) => (
-                    <span key={i} className={styles.metricChip}>
+        return (<div className={styles.metricGroup}>
+                {chips.map((c, i) => (<span key={i} className={styles.metricChip}>
             {c.label}: {c.value}
-          </span>
-                ))}
-            </div>
-        );
+          </span>))}
+            </div>);
     };
 
-    /* ===== Table columns ===== */
-    const columns = [
-        {
-            title: '#',
-            dataIndex: 'index',
-            width: 30,
-            align: 'center',
-            render: (_, __, idx) => (page - 1) * pageSize + idx + 1,
+    const columns = [{
+        title: '#',
+        dataIndex: 'index',
+        width: 30,
+        align: 'center',
+        render: (_, __, idx) => (page - 1) * pageSize + idx + 1,
+    }, {
+        title: 'Name / Version', dataIndex: 'name', render: (_, m) => (<Space size={6} wrap>
+                <Text strong>{m?.name || '(unnamed)'}</Text>
+                {m?.version && <Tag>{m.version}</Tag>}
+            </Space>),
+    }, {
+        title: 'Compliance', dataIndex: 'compliance', width: 120, render: (_, m) => {
+            const st = docStats[m.id];
+            if (!st) return <Text type="secondary">Loading…</Text>;
+            const incomplete = (st.missing > 0) || (st.pending > 0);
+            return incomplete ? <Badge status="error" text="Incomplete"/> : <Badge status="success" text="Complete"/>;
         },
-        {
-            title: 'Name / Version',
-            dataIndex: 'name',
-            render: (_, m) => (
-                <Space size={6} wrap>
-                    <Text strong>{m?.name || '(unnamed)'}</Text>
-                    {m?.version && <Tag>{m.version}</Tag>}
-                </Space>
-            ),
-        },
-        {
-            title: 'Compliance',
-            dataIndex: 'compliance',
-            width: 120,
-            render: (_, m) => {
-                const st = docStats[m.id];
-                if (!st) return <Text type="secondary">Loading…</Text>;
-                const incomplete = (st.missing > 0) || (st.pending > 0);
-                return incomplete
-                    ? <Badge status="error" text="Incomplete"/>
-                    : <Badge status="success" text="Complete"/>;
-            },
-        },
-        {
-            title: 'Risk',
-            dataIndex: 'risk_level',
-            render: (r) => <Tag color={riskColor(r)}>{r}</Tag>,
-        },
-        {
-            title: 'Schema',
-            dataIndex: 'input_schema',
-            render: (s) => s ? <Tag>{s}</Tag> : <Text type="secondary">—</Text>,
-        },
-        {
-            title: 'License',
-            dataIndex: 'license',
-            render: (l) => l ? <Tag>{l}</Tag> : <Text type="secondary">—</Text>,
-        },
-        {
-            title: 'Tags',
-            dataIndex: 'business_tags',
-            render: (_, m) => {
-                const tags = Array.isArray(m?.business_tags) ? m.business_tags : [];
-                const head = tags.slice(0, 0); // 保持你先前的显示策略
-                const more = Math.max(tags.length, 0);
-                return (
-                    <div className={styles.tagsWrap}>
-                        {head.map((t, i) => (<Tag key={i}>{t}</Tag>))}
-                        {more > 0 && (
-                            <Popover
-                                trigger="click"
-                                content={
-                                    <div className={styles.tagsWrap} style={{maxWidth: 360}}>
-                                        {tags.map((t, i) => <Tag key={`all-${i}`}>{t}</Tag>)}
-                                    </div>
-                                }
-                                overlayStyle={{maxWidth: 420}}
-                            >
-                                <Tag color="blue">click to view</Tag>
-                            </Popover>
-                        )}
-                    </div>
-                );
-            },
-        },
-        {
-            title: 'Metrics',
-            width: 320,
-            dataIndex: 'metrics',
-            render: (_, m) => metricChips(m),
-        },
-        {
-            title: 'Actions',
-            dataIndex: 'actions',
-            width: 190,
-            render: (_, m) => (
-                <div className={styles.actionsWrap} style={{width: '100%'}}>
-                    <Button size="small" icon={<EyeOutlined/>} onClick={() => navigate(`/view/${m.id}`)}>View</Button>
-                    {canEdit && <Button size="small" icon={<EditOutlined/>}
-                                        onClick={() => navigate(`/edit/${m.id}`)}>Edit</Button>}
-                    {canDelete && (
-                        <Popconfirm
-                            title="Confirm delete?"
-                            onConfirm={async () => {
-                                try {
-                                    await api.delete(`/models/${m.id}`);
-                                    message.success('Deleted');
-                                    await load();
-                                } catch (e) {
-                                    message.error(e.response?.data?.error || 'Delete failed');
-                                }
-                            }}
+    }, {
+        title: 'Risk', dataIndex: 'risk_level', render: (r) => <Tag color={riskColor(r)}>{r}</Tag>,
+    }, {
+        title: 'Schema', dataIndex: 'input_schema', render: (s) => s ? <Tag>{s}</Tag> : <Text type="secondary">—</Text>,
+    }, {
+        title: 'License', dataIndex: 'license', render: (l) => l ? <Tag>{l}</Tag> : <Text type="secondary">—</Text>,
+    }, {
+        title: 'Tags', dataIndex: 'business_tags', render: (_, m) => {
+            const tags = Array.isArray(m?.business_tags) ? m.business_tags : [];
+            const head = tags.slice(0, 0);
+            const more = Math.max(tags.length, 0);
+            return (<div className={styles.tagsWrap}>
+                    {head.map((t, i) => (<Tag key={i}>{t}</Tag>))}
+                    {more > 0 && (<Popover
+                            trigger="click"
+                            content={<div className={styles.tagsWrap} style={{maxWidth: 360}}>
+                                {tags.map((t, i) => <Tag key={`all-${i}`}>{t}</Tag>)}
+                            </div>}
+                            overlayStyle={{maxWidth: 420}}
                         >
-                            <Button danger icon={<DeleteOutlined/>} size="small"/>
-                        </Popconfirm>
-                    )}
-                </div>
-            ),
+                            <Tag color="blue">click to view</Tag>
+                        </Popover>)}
+                </div>);
         },
-    ];
+    }, {
+        title: 'Metrics', width: 320, dataIndex: 'metrics', render: (_, m) => metricChips(m),
+    }, {
+        title: 'Actions',
+        dataIndex: 'actions',
+        width: 190,
+        render: (_, m) => (<div className={styles.actionsWrap} style={{width: '100%'}}>
+                <Button size="small" icon={<EyeOutlined/>} onClick={() => navigate(`/view/${m.id}`)}>View</Button>
+                {canEdit && <Button size="small" icon={<EditOutlined/>}
+                                    onClick={() => navigate(`/edit/${m.id}`)}>Edit</Button>}
+                {canDelete && (<Popconfirm
+                        title="Confirm delete?"
+                        onConfirm={async () => {
+                            try {
+                                await api.delete(`/models/${m.id}`);
+                                message.success('Deleted');
+                                await load();
+                            } catch (e) {
+                                message.error(e.response?.data?.error || 'Delete failed');
+                            }
+                        }}
+                    >
+                        <Button danger icon={<DeleteOutlined/>} size="small"/>
+                    </Popconfirm>)}
+            </div>),
+    },];
 
-    return (
-        <div className={styles.page}>
+    return (<div className={styles.page}>
             <div className={styles.main}>
                 {/* Header */}
                 <div className={styles.header}>
@@ -382,11 +358,9 @@ export default function HomePage() {
                         {canUpload && (
                             <Button type="primary" icon={<PlusOutlined/>} onClick={() => navigate('/upload')}>
                                 Upload Model
-                            </Button>
-                        )}
+                            </Button>)}
                         {user?.role === 'admin' && (
-                            <Button icon={<TeamOutlined/>} onClick={() => navigate('/admin/users')}>Users</Button>
-                        )}
+                            <Button icon={<TeamOutlined/>} onClick={() => navigate('/admin/users')}>Users</Button>)}
                         <Text type="secondary">{user?.email} · <b>{user?.role}</b></Text>
                         <Button icon={<LogoutOutlined/>} onClick={logout}>Logout</Button>
                     </div>
@@ -394,8 +368,7 @@ export default function HomePage() {
 
                 <Divider style={{margin: '8px 0 10px'}}/>
 
-                {bannerOpen && firstLoadDone && total > 0 && (
-                    <Alert
+                {bannerOpen && firstLoadDone && effectiveTotal > 0 && (<Alert
                         type="info"
                         showIcon
                         closable
@@ -407,9 +380,8 @@ export default function HomePage() {
                             }
                         }}
                         style={{marginBottom: 10}}
-                        message={`${total} model(s) loaded`}
-                    />
-                )}
+                        message={`${effectiveTotal} item(s) in view`}
+                    />)}
 
                 {/* Toolbar */}
                 <div className={styles.toolbar}>
@@ -476,7 +448,7 @@ export default function HomePage() {
                         size="middle"
                         loading={loading}
                         columns={columns}
-                        dataSource={filteredItems}
+                        dataSource={tableData}
                         pagination={false}
                     />
                 </div>
@@ -487,13 +459,18 @@ export default function HomePage() {
                 <Pagination
                     current={page}
                     pageSize={pageSize}
-                    total={filteredItems.length}
+                    total={effectiveTotal}
                     showSizeChanger
                     pageSizeOptions={['12', '24', '48', '96']}
                     onChange={(p, ps) => {
-                        setPage(p);
-                        setPageSize(ps);
+                        if (ps !== pageSize) {
+                            setPageSize(ps);
+                            setPage(1);
+                        } else {
+                            setPage(p);
+                        }
                     }}
+                    showTotal={(t, range) => `${range[0]}-${range[1]} of ${t} item(s)`}
                 />
             </div>
 
@@ -512,14 +489,15 @@ export default function HomePage() {
                         <div style={{marginTop: 8}}>
                             <Select
                                 value={complianceFilter}
-                                onChange={setComplianceFilter}
+                                onChange={(v) => {
+                                    setComplianceFilter(v);
+                                    setPage(1);
+                                }}
                                 style={{width: '100%'}}
-                                options={[
-                                    {value: 'any', label: 'Any'},
-                                    {value: 'compliant', label: 'Complete'},
-                                    {value: 'pending', label: 'Has pending'},
-                                    {value: 'missing', label: 'Has missing'},
-                                ]}
+                                options={[{value: 'any', label: 'Any'}, {
+                                    value: 'compliant',
+                                    label: 'Complete'
+                                }, {value: 'pending', label: 'Has pending'}, {value: 'missing', label: 'Has missing'},]}
                             />
                         </div>
                     </div>
@@ -531,7 +509,10 @@ export default function HomePage() {
                             allowClear
                             style={{width: '100%', marginTop: 8}}
                             value={tagFilterAll}
-                            onChange={setTagFilterAll}
+                            onChange={(v) => {
+                                setTagFilterAll(v);
+                                setPage(1);
+                            }}
                             placeholder="Select tags that must all present"
                             maxTagCount="responsive"
                         >
@@ -546,7 +527,10 @@ export default function HomePage() {
                             allowClear
                             style={{width: '100%', marginTop: 8}}
                             value={tagFilterAny}
-                            onChange={setTagFilterAny}
+                            onChange={(v) => {
+                                setTagFilterAny(v);
+                                setPage(1);
+                            }}
                             placeholder="Select tags (any match)"
                             maxTagCount="responsive"
                         >
@@ -561,7 +545,10 @@ export default function HomePage() {
                             allowClear
                             style={{width: '100%', marginTop: 8}}
                             value={licenseFilter}
-                            onChange={setLicenseFilter}
+                            onChange={(v) => {
+                                setLicenseFilter(v);
+                                setPage(1);
+                            }}
                             showSearch
                             optionFilterProp="label"
                             options={licenseOptions}
@@ -576,34 +563,65 @@ export default function HomePage() {
                             <Text>Min Accuracy</Text>
                             <Slider min={0} max={1} step={0.01}
                                     value={minAcc ?? 0}
-                                    onChange={v => setMinAcc(v === 0 ? undefined : v)}
+                                    onChange={v => {
+                                        setMinAcc(v === 0 ? undefined : v);
+                                        setPage(1);
+                                    }}
                             />
                         </div>
                         <div>
                             <Text>Min F1</Text>
                             <Slider min={0} max={1} step={0.01}
                                     value={minF1 ?? 0}
-                                    onChange={v => setMinF1(v === 0 ? undefined : v)}
+                                    onChange={v => {
+                                        setMinF1(v === 0 ? undefined : v);
+                                        setPage(1);
+                                    }}
                             />
                         </div>
                         <div>
                             <Text>Min AUC</Text>
                             <Slider min={0} max={1} step={0.01}
                                     value={minAUC ?? 0}
-                                    onChange={v => setMinAUC(v === 0 ? undefined : v)}
+                                    onChange={v => {
+                                        setMinAUC(v === 0 ? undefined : v);
+                                        setPage(1);
+                                    }}
                             />
                         </div>
                         <div>
                             <Text>Max Latency (ms)</Text>
                             <Slider min={0} max={10000} step={10}
                                     value={maxLatency ?? 10000}
-                                    onChange={v => setMaxLatency(v === 10000 ? undefined : v)}
+                                    onChange={v => {
+                                        setMaxLatency(v === 10000 ? undefined : v);
+                                        setPage(1);
+                                    }}
                             />
                         </div>
                     </div>
 
                     <div>
-                        <Text strong>Updated at</Text>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                            <Text strong>Updated at</Text>
+                            <Select
+                                size="small"
+                                value={updatedPreset}
+                                onChange={(p) => {
+                                    setUpdatedPreset(p);
+                                    setPage(1);
+                                    applyUpdatedPreset(p);
+                                }}
+                                style={{width: 160}}
+                                options={[{value: 'any', label: 'Any time'}, {
+                                    value: '7d',
+                                    label: 'Last 7 days'
+                                }, {value: '30d', label: 'Last 30 days'}, {
+                                    value: '90d',
+                                    label: 'Last 90 days'
+                                }, {value: 'custom', label: 'Custom range'},]}
+                            />
+                        </div>
                         <RangePicker
                             style={{marginTop: 8, width: '100%'}}
                             value={dateRange}
@@ -622,6 +640,5 @@ export default function HomePage() {
                     </div>
                 </Space>
             </Drawer>
-        </div>
-    );
+        </div>);
 }

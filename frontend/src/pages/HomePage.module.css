@@ -1,3 +1,4 @@
+/*frontend/src/pages/HomePage.module.css*/
 /* ===== Shell with sticky footer ===== */
 .page {
     min-height: 100vh;
@@ -171,7 +172,6 @@
     margin-top: 8px;
 }
 
-/* 让内部内容“脱离”卡片内边距，横向占满整个视口宽度 */
 .fullBleed {
     position: relative;
     left: 50%;
@@ -181,13 +181,11 @@
     width: 100vw;
 }
 
-/* 内层滚动容器，避免表格高度过窄时出现页面级滚动条 */
 .tableScroll {
     overflow-x: auto;
-    padding: 0 16px; /* 给两侧留点呼吸 */
+    padding: 0 16px;
 }
 
-/* 表格紧凑化 + 不换行，省空间 */
 .compTable :global(.ant-table) {
     border-radius: 12px;
     overflow: hidden;
@@ -195,16 +193,15 @@
 
 .compTable :global(.ant-table-thead > tr > th),
 .compTable :global(.ant-table-tbody > tr > td) {
-    white-space: nowrap; /* 不换行 */
-    padding: 8px 10px; /* 更紧凑的单元格 */
+    white-space: nowrap;
+    padding: 8px 10px;
 }
 
-/* 使 ellipsis 生效时展示省略号 */
+
 .compTable :global(.ant-table-cell-ellipsis) {
     max-width: 100%;
 }
 
-/* 深色模式下边框微调（可选） */
 @media (prefers-color-scheme: dark) {
     .compTable :global(.ant-table-thead > tr > th) {
         border-color: rgba(148, 163, 184, .25);
@@ -215,14 +212,12 @@
     }
 }
 
-/* 审核动作按钮：统一尺寸与圆角 */
 .actionBtn {
     border-radius: 8px;
     padding: 0 8px;
     height: 28px;
 }
 
-/* Approve 默认/选中 */
 .actionApprove {
     background: rgba(34, 197, 94, .10);
 }
@@ -231,7 +226,6 @@
     background: rgba(34, 197, 94, .25);
 }
 
-/* Reject 默认/选中 */
 .actionReject {
     background: rgba(239, 68, 68, .10);
 }
@@ -240,7 +234,6 @@
     background: rgba(239, 68, 68, .24);
 }
 
-/* 图标颜色（深浅模式都清晰） */
 .actionApprove :global(.anticon) {
     color: #22c55e;
 }
@@ -249,12 +242,10 @@
     color: #ef4444;
 }
 
-/* 轻微悬停反馈 */
 .actionBtn:hover {
     filter: brightness(1.05);
 }
 
-/* 加强优先级并使用 !important */
 .actionApprove {
     background: rgba(34, 197, 94, 0.10) !important;
 }
@@ -271,7 +262,6 @@
     background: rgba(239, 68, 68, 0.24) !important;
 }
 
-/* 强制覆盖图标颜色 */
 .actionApprove :global(.anticon) {
     color: #22c55e !important;
 }

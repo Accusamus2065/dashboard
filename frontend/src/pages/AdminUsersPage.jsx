@@ -84,59 +84,38 @@ export default function AdminUsersPage() {
         if (page > maxPage) setPage(1);
     }, [filtered.length, page, pageSize]);
 
-    const columns = [
-        {title: 'ID', dataIndex: 'id', key: 'id', width: 0, align: 'center'},
-        {
-            title: 'Email',
-            dataIndex: 'email',
-            key: 'email',
-            width: 450,
-            render: (v, r) => (
-                <Space>
-                    <span className="emailCell">{v}</span>
-                    {me?.id === r.id && <Tag color="blue">you</Tag>}
-                </Space>
-            )
-        },
-        {
-            title: 'Created At',
-            dataIndex: 'created_at',
-            key: 'created_at',
-            render: (value) => dayjs(value).format('MMMM D, YYYY, h:mm A')
-        },
-        {
-            title: 'Role',
-            dataIndex: 'role',
-            key: 'role',
-            width: 450,
-            render: (r, record) => (
-                <Space wrap>
-                    <Tag
-                        color={r === 'admin' ? 'red' : r === 'auditor' ? 'blue' : r === 'uploader' ? 'green' : 'default'}>
-                        {r}
-                    </Tag>
-                    <Select
-                        value={r}
-                        onChange={(val) => onChangeRole(record.id, val)}
-                        style={{width: 180}}
-                    >
-                        {ROLES.map(x => <Option key={x} value={x}>{x}</Option>)}
-                    </Select>
-                </Space>
-            )
-        },
-    ];
+    const columns = [{title: 'ID', dataIndex: 'id', key: 'id', width: 0, align: 'center'}, {
+        title: 'Email', dataIndex: 'email', key: 'email', width: 450, render: (v, r) => (<Space>
+                <span className="emailCell">{v}</span>
+                {me?.id === r.id && <Tag color="blue">you</Tag>}
+            </Space>)
+    }, {
+        title: 'Created At',
+        dataIndex: 'created_at',
+        key: 'created_at',
+        render: (value) => dayjs(value).format('MMMM D, YYYY, h:mm A')
+    }, {
+        title: 'Role', dataIndex: 'role', key: 'role', width: 450, render: (r, record) => (<Space wrap>
+                <Tag
+                    color={r === 'admin' ? 'red' : r === 'auditor' ? 'blue' : r === 'uploader' ? 'green' : 'default'}>
+                    {r}
+                </Tag>
+                <Select
+                    value={r}
+                    onChange={(val) => onChangeRole(record.id, val)}
+                    style={{width: 180}}
+                >
+                    {ROLES.map(x => <Option key={x} value={x}>{x}</Option>)}
+                </Select>
+            </Space>)
+    },];
 
 
     if (isAdmin) {
         columns.push({
-            title: 'Actions',
-            key: 'actions',
-            width: 150,
-            render: (_t, record) => {
+            title: 'Actions', key: 'actions', width: 150, render: (_t, record) => {
                 const isSelf = me?.id === record.id;
-                return (
-                    <Tooltip title={isSelf ? 'You cannot delete yourself' : ''}>
+                return (<Tooltip title={isSelf ? 'You cannot delete yourself' : ''}>
             <span>
               <Popconfirm
                   title={`Delete user ${record.email}?`}
@@ -151,14 +130,12 @@ export default function AdminUsersPage() {
                 </Button>
               </Popconfirm>
             </span>
-                    </Tooltip>
-                );
+                    </Tooltip>);
             }
         });
     }
 
-    return (
-        <div className={styles.page}>
+    return (<div className={styles.page}>
             <div className={styles.main}>
                 <div className={styles.header}>
                     <Space align="center">
@@ -208,6 +185,5 @@ export default function AdminUsersPage() {
                     }}
                 />
             </div>
-        </div>
-    );
+        </div>);
 }

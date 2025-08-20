@@ -1,3 +1,4 @@
+// frontend/src/pages/UploadPage.jsx
 import React, {useState, useMemo} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import {
@@ -45,10 +46,8 @@ export default function UploadPage() {
     const [complianceTypes, setComplianceTypes] = useState({});
     const [guideOpen, setGuideOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    // components state 顶部附近加上：
     const [tagOptions, setTagOptions] = useState([]);
 
-// 在组件里添加一次性加载（放在组件体内，与其他 useMemo/useState 同级）：
     React.useEffect(() => {
         (async () => {
             try {
@@ -56,7 +55,6 @@ export default function UploadPage() {
                 const opts = (res.data?.items || []).map(t => ({label: t, value: t}));
                 setTagOptions(opts);
             } catch {
-                // 静默失败：保持可自由输入
             }
         })();
     }, []);
@@ -284,10 +282,10 @@ export default function UploadPage() {
                                 placeholder="Type to search or create; click to see all"
                                 style={{width: '100%'}}
                                 maxTagCount="responsive"
-                                options={tagOptions}             // ✅ 展示全站已有 tags
+                                options={tagOptions}
                                 showSearch
-                                optionFilterProp="label"         // ✅ 搜索按 label
-                                filterOption={(input, opt) =>    // ✅ 不区分大小写
+                                optionFilterProp="label"
+                                filterOption={(input, opt) =>
                                     (opt?.label ?? '').toLowerCase().includes(input.toLowerCase())
                                 }
                             />

@@ -1,4 +1,4 @@
-// index.js
+// backend/src/index.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -61,10 +61,8 @@ const storage = multer.diskStorage({
     filename: (_req, file, cb) => cb(null, `${Date.now()}_${file.originalname}`)
 });
 
-// 允许的类型较宽（合规/数据集等）；模型 ZIP 的强校验在路由里做
 const upload = multer({
-    storage,
-    fileFilter: (_req, file, cb) => {
+    storage, fileFilter: (_req, file, cb) => {
         const allowed = /\.(onnx|pt|pth|h5|pb|pkl|joblib|md|txt|pdf|doc|docx|csv|json|parquet|zip|png|jpg|jpeg|gif|svg)$/i;
         if (!allowed.test(file.originalname)) return cb(new Error('Unsupported file type'));
         cb(null, true);
@@ -80,7 +78,6 @@ SecurityQA.belongsTo(User, {foreignKey: 'user_id'});
 
 Model.hasMany(ComplianceDoc, {foreignKey: 'model_id', as: 'docs'});
 
-/** ---------------- 更新日志表 ModelUpdate ---------------- **/
 const ModelUpdate = sequelize.define('ModelUpdate', {
     model_id: {type: DataTypes.INTEGER, allowNull: false},
     actor_id: {type: DataTypes.INTEGER, allowNull: false},
@@ -92,11 +89,7 @@ const ModelUpdate = sequelize.define('ModelUpdate', {
     name_snapshot: {type: DataTypes.STRING, allowNull: true},
     version_snapshot: {type: DataTypes.STRING, allowNull: true},
 }, {
-    tableName: 'model_updates',
-    underscored: true,
-    timestamps: true,
-    createdAt: 'created_at',
-    updatedAt: false
+    tableName: 'model_updates', underscored: true, timestamps: true, createdAt: 'created_at', updatedAt: false
 });
 
 ModelUpdate.belongsTo(Model, {foreignKey: 'model_id'});
@@ -159,7 +152,6 @@ function sanitizeModelForRole(modelRec, role) {
         return obj;
     }
     // viewer
-    delete obj.owner_contact;
     delete obj.training_data_uris;
     delete obj.validation_data_uris;
     return obj;
@@ -167,9 +159,7 @@ function sanitizeModelForRole(modelRec, role) {
 
 // Compliance requirements by risk
 const REQUIRED_DOCS = {
-    high: ['FRIA', 'DPIA', 'PRIVACY'],
-    medium: ['PRIVACY'],
-    low: []
+    high: ['FRIA', 'DPIA', 'PRIVACY'], medium: ['PRIVACY'], low: []
 };
 
 // ---- AUTH ROUTES ----
@@ -294,12 +284,24 @@ app.put('/admin/users/:id/role', authRequired, requireRole('admin'), async (req,
 app.get('/models/search', authRequired, async (req, res, next) => {
     try {
         const {
-            q, risk, schema, license, tags, tagsMode,
-            hasDocs, hasTrain, hasVal,
-            minAcc, minF1, minAUC, maxLatency,
-            dateFrom, dateTo,
+            q,
+            risk,
+            schema,
+            license,
+            tags,
+            tagsMode,
+            hasDocs,
+            hasTrain,
+            hasVal,
+            minAcc,
+            minF1,
+            minAUC,
+            maxLatency,
+            dateFrom,
+            dateTo,
             sort = 'updated_at_desc',
-            page = 1, pageSize = 24
+            page = 1,
+            pageSize = 24
         } = req.query;
 
         const whereArr = [];
@@ -311,19 +313,9 @@ app.get('/models/search', authRequired, async (req, res, next) => {
             for (const t of terms) {
                 const like = `%${t}%`;
                 whereArr.push({
-                    [Op.or]: [
-                        {name: {[Op.iLike]: like}},
-                        {description: {[Op.iLike]: like}},
-                        {owner_contact: {[Op.iLike]: like}},
-                        whereFn(
-                            fn('EXISTS',
-                                literal(`SELECT 1
-                                         FROM unnest("business_tags") AS tag
-                                         WHERE tag ILIKE ${sequelize.escape(like)}`)
-                            ),
-                            true
-                        )
-                    ]
+                    [Op.or]: [{name: {[Op.iLike]: like}}, {description: {[Op.iLike]: like}}, {owner_contact: {[Op.iLike]: like}}, whereFn(fn('EXISTS', literal(`SELECT 1
+                                                                                                                                                                FROM unnest("business_tags") AS tag
+                                                                                                                                                                WHERE tag ILIKE ${sequelize.escape(like)}`)), true)]
                 });
             }
         }
@@ -335,8 +327,7 @@ app.get('/models/search', authRequired, async (req, res, next) => {
         if (tags) {
             const arr = String(tags).split(',').map(s => s.trim()).filter(Boolean);
             if (arr.length) {
-                if (tagsMode === 'all') whereArr.push({business_tags: {[Op.contains]: arr}});
-                else whereArr.push({business_tags: {[Op.overlap]: arr}});
+                if (tagsMode === 'all') whereArr.push({business_tags: {[Op.contains]: arr}}); else whereArr.push({business_tags: {[Op.overlap]: arr}});
             }
         }
 
@@ -351,8 +342,7 @@ app.get('/models/search', authRequired, async (req, res, next) => {
         if (dateFrom || dateTo) {
             whereArr.push({
                 updated_at: {
-                    ...(dateFrom ? {[Op.gte]: new Date(dateFrom)} : {}),
-                    ...(dateTo ? {[Op.lte]: new Date(dateTo)} : {}),
+                    ...(dateFrom ? {[Op.gte]: new Date(dateFrom)} : {}), ...(dateTo ? {[Op.lte]: new Date(dateTo)} : {}),
                 }
             });
         }
@@ -374,10 +364,7 @@ app.get('/models/search', authRequired, async (req, res, next) => {
         const include = [];
         if (hasDocs === 'true') {
             include.push({
-                model: ComplianceDoc,
-                as: 'docs',
-                required: true,
-                attributes: []
+                model: ComplianceDoc, as: 'docs', required: true, attributes: []
             });
         }
 
@@ -388,11 +375,7 @@ app.get('/models/search', authRequired, async (req, res, next) => {
             order: [order],
             limit,
             offset,
-            attributes: [
-                'id', 'name', 'version', 'risk_level', 'input_schema',
-                'baseline_accuracy', 'baseline_f1', 'baseline_auc', 'baseline_latency_ms',
-                'license', 'business_tags', 'updated_at'
-            ]
+            attributes: ['id', 'name', 'version', 'risk_level', 'input_schema', 'baseline_accuracy', 'baseline_f1', 'baseline_auc', 'baseline_latency_ms', 'license', 'business_tags', 'updated_at']
         });
 
         const items = rows.map(r => sanitizeModelForRole(r, req.user.role));
@@ -424,38 +407,122 @@ app.get('/models/:id', authRequired, async (req, res, next) => {
 });
 
 // Create: uploader/admin
-app.post(
-    '/models',
-    authRequired, requireRole(['uploader', 'admin']),
-    upload.fields([
-        {name: 'files', maxCount: 1},          // 仅 1 个 ZIP
-        {name: 'readme', maxCount: 1},
-        {name: 'compliance_docs', maxCount: 20},
-        {name: 'training_data', maxCount: 50},
-        {name: 'validation_data', maxCount: 50},
-    ]),
-    async (req, res, next) => {
-        try {
-            const {
-                name, version, description, input_schema, risk_level,
-                owner_contact, license
-            } = req.body;
+app.post('/models', authRequired, requireRole(['uploader', 'admin']), upload.fields([{
+    name: 'files',
+    maxCount: 1
+}, {name: 'readme', maxCount: 1}, {name: 'compliance_docs', maxCount: 20}, {
+    name: 'training_data',
+    maxCount: 50
+}, {name: 'validation_data', maxCount: 50},]), async (req, res, next) => {
+    try {
+        const {
+            name, version, description, input_schema, risk_level, owner_contact, license
+        } = req.body;
 
-            if (!name || !version || !description || !input_schema || !risk_level) {
-                return res.status(400).json({error: 'Missing required fields'});
-            }
-            if (!SCHEMA_MODES.includes(input_schema) || !RISK_LEVELS.includes(risk_level)) {
-                return res.status(400).json({error: 'Invalid schema or risk'});
-            }
-            if (license && !LICENSES.includes(license)) {
-                return res.status(400).json({error: 'Invalid license'});
-            }
+        if (!name || !version || !description || !input_schema || !risk_level) {
+            return res.status(400).json({error: 'Missing required fields'});
+        }
+        if (!SCHEMA_MODES.includes(input_schema) || !RISK_LEVELS.includes(risk_level)) {
+            return res.status(400).json({error: 'Invalid schema or risk'});
+        }
+        if (license && !LICENSES.includes(license)) {
+            return res.status(400).json({error: 'Invalid license'});
+        }
 
-            // 模型文件仅支持 ZIP，并强校验命名
-            const filesArr = req.files?.files || [];
-            if (!filesArr.length) return res.status(400).json({error: 'Model artifact file is required (.zip)'});
+        const filesArr = req.files?.files || [];
+        if (!filesArr.length) return res.status(400).json({error: 'Model artifact file is required (.zip)'});
 
-            const mf = filesArr[0];
+        const mf = filesArr[0];
+        const base = path.basename(mf.originalname);
+        if (!/\.zip$/i.test(base)) {
+            return res.status(400).json({error: 'Model file must be a .zip archive'});
+        }
+        if (!/^[A-Za-z0-9._-]+\.zip$/.test(base)) {
+            return res.status(400).json({error: 'Model .zip name must be ASCII [A-Za-z0-9._-] with no spaces'});
+        }
+
+        const readme = req.files.readme?.[0];
+        if (readme && !/\.(md|pdf)$/i.test(readme.originalname)) {
+            return res.status(400).json({error: 'README must be .md or .pdf'});
+        }
+
+        const artifact_uri = `/uploads/${mf.filename}`;
+        const readme_uri = readme ? `/uploads/${readme.filename}` : null;
+        const compliance_docs = toArrayFromFiles(req.files.compliance_docs);
+        const training_data_uris = toArrayFromFiles(req.files.training_data);
+        const validation_data_uris = toArrayFromFiles(req.files.validation_data);
+
+        const baseline_latency_ms = toNum(req.body.baseline_latency_ms);
+        const baseline_accuracy = toNum(req.body.baseline_accuracy);
+        const baseline_f1 = toNum(req.body.baseline_f1);
+        const baseline_auc = toNum(req.body.baseline_auc);
+
+        const business_tags = safeParseArray(req.body.business_tags);
+
+        const created = await Model.create({
+            name,
+            version,
+            description,
+            input_schema,
+            risk_level,
+            artifact_uri,
+            readme_uri,
+            baseline_latency_ms,
+            baseline_accuracy,
+            baseline_f1,
+            baseline_auc,
+            compliance_docs,
+            business_tags,
+            owner_contact,
+            license,
+            training_data_uris,
+            validation_data_uris
+        });
+        res.status(201).json(created);
+    } catch (err) {
+        next(err);
+    }
+});
+
+app.put('/models/:id', authRequired, requireRole(['uploader', 'admin']), upload.fields([{
+    name: 'files',
+    maxCount: 1
+}, {name: 'readme', maxCount: 1}, {name: 'compliance_docs', maxCount: 20}, {
+    name: 'training_data',
+    maxCount: 50
+}, {name: 'validation_data', maxCount: 50},]), async (req, res, next) => {
+    try {
+        const rec = await Model.findByPk(req.params.id);
+        if (!rec) return res.status(404).json({error: 'Not found'});
+
+        const updatable = ['name', 'version', 'description', 'input_schema', 'risk_level', 'owner_contact', 'license'];
+        const data = {};
+        updatable.forEach(f => {
+            if (req.body[f] !== undefined) data[f] = req.body[f];
+        });
+
+        if (data.input_schema && !SCHEMA_MODES.includes(data.input_schema)) {
+            return res.status(400).json({error: 'Invalid schema'});
+        }
+        if (data.risk_level && !RISK_LEVELS.includes(data.risk_level)) {
+            return res.status(400).json({error: 'Invalid risk'});
+        }
+        if (data.license && !LICENSES.includes(data.license)) {
+            return res.status(400).json({error: 'Invalid license'});
+        }
+
+        if (req.body.baseline_latency_ms !== undefined) data.baseline_latency_ms = toNum(req.body.baseline_latency_ms);
+        if (req.body.baseline_accuracy !== undefined) data.baseline_accuracy = toNum(req.body.baseline_accuracy);
+        if (req.body.baseline_f1 !== undefined) data.baseline_f1 = toNum(req.body.baseline_f1);
+        if (req.body.baseline_auc !== undefined) data.baseline_auc = toNum(req.body.baseline_auc);
+
+        if (req.body.business_tags !== undefined) data.business_tags = safeParseArray(req.body.business_tags);
+
+        const prevArtifact = rec.artifact_uri;
+
+        let artifactChanged = false;
+        if (req.files?.files?.length) {
+            const mf = req.files.files[0];
             const base = path.basename(mf.originalname);
             if (!/\.zip$/i.test(base)) {
                 return res.status(400).json({error: 'Model file must be a .zip archive'});
@@ -463,144 +530,50 @@ app.post(
             if (!/^[A-Za-z0-9._-]+\.zip$/.test(base)) {
                 return res.status(400).json({error: 'Model .zip name must be ASCII [A-Za-z0-9._-] with no spaces'});
             }
+            data.artifact_uri = `/uploads/${mf.filename}`;
+            artifactChanged = true;
+        }
 
-            // README 仅允许 .md 或 .pdf
-            const readme = req.files.readme?.[0];
-            if (readme && !/\.(md|pdf)$/i.test(readme.originalname)) {
+        if (req.files?.readme?.length) {
+            const readme = req.files.readme[0];
+            if (!/\.(md|pdf)$/i.test(readme.originalname)) {
                 return res.status(400).json({error: 'README must be .md or .pdf'});
             }
-
-            const artifact_uri = `/uploads/${mf.filename}`;
-            const readme_uri = readme ? `/uploads/${readme.filename}` : null;
-            const compliance_docs = toArrayFromFiles(req.files.compliance_docs);
-            const training_data_uris = toArrayFromFiles(req.files.training_data);
-            const validation_data_uris = toArrayFromFiles(req.files.validation_data);
-
-            const baseline_latency_ms = toNum(req.body.baseline_latency_ms);
-            const baseline_accuracy = toNum(req.body.baseline_accuracy);
-            const baseline_f1 = toNum(req.body.baseline_f1);
-            const baseline_auc = toNum(req.body.baseline_auc);
-
-            const business_tags = safeParseArray(req.body.business_tags);
-
-            const created = await Model.create({
-                name, version, description, input_schema, risk_level,
-                artifact_uri, readme_uri,
-                baseline_latency_ms, baseline_accuracy, baseline_f1, baseline_auc,
-                compliance_docs, business_tags, owner_contact, license,
-                training_data_uris, validation_data_uris
-            });
-            res.status(201).json(created);
-        } catch (err) {
-            next(err);
+            data.readme_uri = `/uploads/${readme.filename}`;
         }
-    }
-);
 
-// Update: uploader/admin —— 仅更新，不写日志；把变更摘要返回给前端
-app.put(
-    '/models/:id',
-    authRequired, requireRole(['uploader', 'admin']),
-    upload.fields([
-        {name: 'files', maxCount: 1},          // 仅 1 个 ZIP
-        {name: 'readme', maxCount: 1},
-        {name: 'compliance_docs', maxCount: 20},
-        {name: 'training_data', maxCount: 50},
-        {name: 'validation_data', maxCount: 50},
-    ]),
-    async (req, res, next) => {
-        try {
-            const rec = await Model.findByPk(req.params.id);
-            if (!rec) return res.status(404).json({error: 'Not found'});
-
-            const updatable = ['name', 'version', 'description', 'input_schema', 'risk_level', 'owner_contact', 'license'];
-            const data = {};
-            updatable.forEach(f => {
-                if (req.body[f] !== undefined) data[f] = req.body[f];
-            });
-
-            if (data.input_schema && !SCHEMA_MODES.includes(data.input_schema)) {
-                return res.status(400).json({error: 'Invalid schema'});
-            }
-            if (data.risk_level && !RISK_LEVELS.includes(data.risk_level)) {
-                return res.status(400).json({error: 'Invalid risk'});
-            }
-            if (data.license && !LICENSES.includes(data.license)) {
-                return res.status(400).json({error: 'Invalid license'});
-            }
-
-            if (req.body.baseline_latency_ms !== undefined) data.baseline_latency_ms = toNum(req.body.baseline_latency_ms);
-            if (req.body.baseline_accuracy !== undefined) data.baseline_accuracy = toNum(req.body.baseline_accuracy);
-            if (req.body.baseline_f1 !== undefined) data.baseline_f1 = toNum(req.body.baseline_f1);
-            if (req.body.baseline_auc !== undefined) data.baseline_auc = toNum(req.body.baseline_auc);
-
-            if (req.body.business_tags !== undefined) data.business_tags = safeParseArray(req.body.business_tags);
-
-            // 变更前快照
-            const prevArtifact = rec.artifact_uri;
-
-            // 可选替换 ZIP
-            let artifactChanged = false;
-            if (req.files?.files?.length) {
-                const mf = req.files.files[0];
-                const base = path.basename(mf.originalname);
-                if (!/\.zip$/i.test(base)) {
-                    return res.status(400).json({error: 'Model file must be a .zip archive'});
-                }
-                if (!/^[A-Za-z0-9._-]+\.zip$/.test(base)) {
-                    return res.status(400).json({error: 'Model .zip name must be ASCII [A-Za-z0-9._-] with no spaces'});
-                }
-                data.artifact_uri = `/uploads/${mf.filename}`;
-                artifactChanged = true;
-            }
-
-            // 可选替换 README（仅 .md|.pdf）
-            if (req.files?.readme?.length) {
-                const readme = req.files.readme[0];
-                if (!/\.(md|pdf)$/i.test(readme.originalname)) {
-                    return res.status(400).json({error: 'README must be .md or .pdf'});
-                }
-                data.readme_uri = `/uploads/${readme.filename}`;
-            }
-
-            // 变更字段集合（仅记录值有变化的）
-            const maybeFields = [
-                'name', 'version', 'description', 'input_schema', 'risk_level', 'owner_contact', 'license',
-                'baseline_latency_ms', 'baseline_accuracy', 'baseline_f1', 'baseline_auc', 'business_tags'
-            ];
-            const changedFields = [];
-            const prevValues = {};
-            const newValues = {};
-            for (const k of maybeFields) {
-                if (data[k] !== undefined) {
-                    const oldVal = rec[k];
-                    const newVal = data[k];
-                    if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-                        changedFields.push(k);
-                        prevValues[k] = oldVal ?? null;
-                        newValues[k] = newVal ?? null;
-                    }
+        const maybeFields = ['name', 'version', 'description', 'input_schema', 'risk_level', 'owner_contact', 'license', 'baseline_latency_ms', 'baseline_accuracy', 'baseline_f1', 'baseline_auc', 'business_tags'];
+        const changedFields = [];
+        const prevValues = {};
+        const newValues = {};
+        for (const k of maybeFields) {
+            if (data[k] !== undefined) {
+                const oldVal = rec[k];
+                const newVal = data[k];
+                if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+                    changedFields.push(k);
+                    prevValues[k] = oldVal ?? null;
+                    newValues[k] = newVal ?? null;
                 }
             }
-
-            await rec.update(data);
-
-            const change_meta = {
-                changed_fields: changedFields,
-                artifact_changed: artifactChanged,
-                prev_artifact_uri: artifactChanged ? prevArtifact : null,
-                new_artifact_uri: artifactChanged ? rec.artifact_uri : null,
-                // 仅用于“历史”展示 Basics & Metrics 的前后值（文件不包含）
-                prev_values: Object.keys(prevValues).length ? prevValues : null,
-                new_values: Object.keys(newValues).length ? newValues : null
-            };
-
-            res.json({updated: rec, change_meta});
-        } catch (err) {
-            next(err);
         }
+
+        await rec.update(data);
+
+        const change_meta = {
+            changed_fields: changedFields,
+            artifact_changed: artifactChanged,
+            prev_artifact_uri: artifactChanged ? prevArtifact : null,
+            new_artifact_uri: artifactChanged ? rec.artifact_uri : null,
+            prev_values: Object.keys(prevValues).length ? prevValues : null,
+            new_values: Object.keys(newValues).length ? newValues : null
+        };
+
+        res.json({updated: rec, change_meta});
+    } catch (err) {
+        next(err);
     }
-);
+});
 
 // Delete: admin only
 app.delete('/models/:id', authRequired, requireRole('admin'), async (req, res, next) => {
@@ -638,10 +611,11 @@ app.get('/models/:id/compliance-docs', authRequired, async (req, res, next) => {
         const docs = await ComplianceDoc.findAll({
             where: {model_id: modelId},
             order: [['id', 'ASC']],
-            include: [
-                {model: User, as: 'uploader', attributes: ['id', 'email']},
-                {model: User, as: 'reviewer', attributes: ['id', 'email']},
-            ]
+            include: [{model: User, as: 'uploader', attributes: ['id', 'email']}, {
+                model: User,
+                as: 'reviewer',
+                attributes: ['id', 'email']
+            },]
         });
         res.json(docs);
     } catch (err) {
@@ -649,53 +623,37 @@ app.get('/models/:id/compliance-docs', authRequired, async (req, res, next) => {
     }
 });
 
-app.post(
-    '/models/:id/compliance-docs',
-    authRequired, requireRole(['uploader', 'admin']),
-    upload.single('doc'),
-    async (req, res, next) => {
-        try {
-            const modelId = Number(req.params.id);
-            const {type} = req.body || {};
-            if (!COMPLIANCE_TYPES.includes(type)) return res.status(400).json({error: 'Invalid type'});
-            if (!req.file) return res.status(400).json({error: 'File (field: doc) is required'});
-            const doc = await ComplianceDoc.create({
-                model_id: modelId,
-                type,
-                uri: `/uploads/${req.file.filename}`,
-                uploaded_by: req.user.uid,
-                status: 'pending'
-            });
-            res.status(201).json(doc);
-        } catch (err) {
-            next(err);
-        }
+app.post('/models/:id/compliance-docs', authRequired, requireRole(['uploader', 'admin']), upload.single('doc'), async (req, res, next) => {
+    try {
+        const modelId = Number(req.params.id);
+        const {type} = req.body || {};
+        if (!COMPLIANCE_TYPES.includes(type)) return res.status(400).json({error: 'Invalid type'});
+        if (!req.file) return res.status(400).json({error: 'File (field: doc) is required'});
+        const doc = await ComplianceDoc.create({
+            model_id: modelId, type, uri: `/uploads/${req.file.filename}`, uploaded_by: req.user.uid, status: 'pending'
+        });
+        res.status(201).json(doc);
+    } catch (err) {
+        next(err);
     }
-);
+});
 
-app.put(
-    '/compliance-docs/:docId/review',
-    authRequired, requireRole(['auditor', 'admin']),
-    async (req, res, next) => {
-        try {
-            const {status, note} = req.body || {};
-            if (!['approved', 'rejected'].includes(status)) {
-                return res.status(400).json({error: 'status must be "approved" or "rejected"'});
-            }
-            const doc = await ComplianceDoc.findByPk(req.params.docId);
-            if (!doc) return res.status(404).json({error: 'Doc not found'});
-            await doc.update({
-                status,
-                reviewer_id: req.user.uid,
-                reviewed_at: new Date(),
-                note: note || null
-            });
-            res.json(doc);
-        } catch (err) {
-            next(err);
+app.put('/compliance-docs/:docId/review', authRequired, requireRole(['auditor', 'admin']), async (req, res, next) => {
+    try {
+        const {status, note} = req.body || {};
+        if (!['approved', 'rejected'].includes(status)) {
+            return res.status(400).json({error: 'status must be "approved" or "rejected"'});
         }
+        const doc = await ComplianceDoc.findByPk(req.params.docId);
+        if (!doc) return res.status(404).json({error: 'Doc not found'});
+        await doc.update({
+            status, reviewer_id: req.user.uid, reviewed_at: new Date(), note: note || null
+        });
+        res.json(doc);
+    } catch (err) {
+        next(err);
     }
-);
+});
 
 app.delete('/compliance-docs/:docId', authRequired, async (req, res, next) => {
     try {
@@ -768,16 +726,13 @@ app.get('/business-tags', authRequired, async (_req, res, next) => {
                 }
             }
         }
-        const items = Array.from(set).sort((a, b) =>
-            a.localeCompare(b, undefined, {sensitivity: 'base'})
-        );
+        const items = Array.from(set).sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
         res.json({items});
     } catch (err) {
         next(err);
     }
 });
 
-/** -------- 更新历史路由（支持多选类型） -------- **/
 app.get('/models/:id/updates', authRequired, async (req, res, next) => {
     try {
         const modelId = Number(req.params.id);

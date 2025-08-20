@@ -12,7 +12,6 @@ export function AuthProvider({children}) {
     });
 
     useEffect(() => {
-        // optional: validate token on refresh
         const token = localStorage.getItem('token');
         if (token && !user) {
             api.get('/auth/me').then(res => {

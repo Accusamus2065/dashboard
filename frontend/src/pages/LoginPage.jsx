@@ -1,3 +1,4 @@
+// frontend/src/pages/LoginPage.jsx
 import React, {useEffect, useLayoutEffect, useRef} from 'react';
 import '@ant-design/v5-patch-for-react-19';
 import {Button, Card, Form, Input, Typography, message} from 'antd';
@@ -54,8 +55,7 @@ export default function LoginPage() {
         }
     };
 
-    return (
-        <div className={styles.wrapper}>
+    return (<div className={styles.wrapper}>
             <Card className={`${styles.card} ${styles.fadeIn}`} variant="borderless">
                 <header className={styles.header}>
                     <div className={styles.logoWrap} aria-hidden>
@@ -84,11 +84,9 @@ export default function LoginPage() {
 
                         const emailErrs = [...new Set(byName.get('email') || [])];
                         const pwdErrs = [...new Set(byName.get('password') || [])];
-                        const otherErrs = [...new Set(
-                            [...byName.entries()]
-                                .filter(([n]) => n !== 'email' && n !== 'password')
-                                .flatMap(([, errs]) => errs)
-                        )];
+                        const otherErrs = [...new Set([...byName.entries()]
+                            .filter(([n]) => n !== 'email' && n !== 'password')
+                            .flatMap(([, errs]) => errs))];
 
                         if (emailErrs.length) {
                             message.error({content: emailErrs.join('\n'), duration: 4});
@@ -109,10 +107,10 @@ export default function LoginPage() {
                 >
                     <Form.Item
                         name="email"
-                        rules={[
-                            {required: true, message: 'Please enter your email'},
-                            {type: 'email', message: 'Please enter a valid email'},
-                        ]}
+                        rules={[{required: true, message: 'Please enter your email'}, {
+                            type: 'email',
+                            message: 'Please enter a valid email'
+                        },]}
                         // ensure item itself doesn’t validate onChange/onBlur
                         validateTrigger="onSubmit"
                     >
@@ -169,6 +167,5 @@ export default function LoginPage() {
                     </div>
                 </Form>
             </Card>
-        </div>
-    );
+        </div>);
 }

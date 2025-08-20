@@ -78,9 +78,7 @@ export default function ForgotPasswordPage() {
 
     // Show separate toasts for (a) questions and (b) password, when both fail.
     const showErrors = (errorInfoOrFields) => {
-        const errorFields = Array.isArray(errorInfoOrFields)
-            ? errorInfoOrFields
-            : (errorInfoOrFields?.errorFields || []);
+        const errorFields = Array.isArray(errorInfoOrFields) ? errorInfoOrFields : (errorInfoOrFields?.errorFields || []);
 
         // Group errors by field name
         const byName = new Map();
@@ -107,14 +105,12 @@ export default function ForgotPasswordPage() {
         if (hasAns && hasPwd) {
             message.error({content: 'One or more security questions are missing or invalid.', duration: 4});
             message.error({
-                content: pwdErrs.length ? pwdErrs.join('\n') : 'Password is invalid.',
-                duration: 4,
+                content: pwdErrs.length ? pwdErrs.join('\n') : 'Password is invalid.', duration: 4,
             });
             // If there are any other field errors (rare here), show them too as a third toast
             if (otherErrsDedupe.length) {
                 message.error({
-                    content: <div style={{whiteSpace: 'pre-line'}}>{otherErrsDedupe.join('\n')}</div>,
-                    duration: 4,
+                    content: <div style={{whiteSpace: 'pre-line'}}>{otherErrsDedupe.join('\n')}</div>, duration: 4,
                 });
             }
             return;
@@ -125,8 +121,7 @@ export default function ForgotPasswordPage() {
             message.error({content: 'One or more security questions are missing or invalid.', duration: 4});
             if (otherErrsDedupe.length) {
                 message.error({
-                    content: <div style={{whiteSpace: 'pre-line'}}>{otherErrsDedupe.join('\n')}</div>,
-                    duration: 4,
+                    content: <div style={{whiteSpace: 'pre-line'}}>{otherErrsDedupe.join('\n')}</div>, duration: 4,
                 });
             }
             return;
@@ -135,13 +130,11 @@ export default function ForgotPasswordPage() {
         // Only password invalid
         if (hasPwd) {
             message.error({
-                content: pwdErrs.length ? pwdErrs.join('\n') : 'Password is invalid.',
-                duration: 4,
+                content: pwdErrs.length ? pwdErrs.join('\n') : 'Password is invalid.', duration: 4,
             });
             if (otherErrsDedupe.length) {
                 message.error({
-                    content: <div style={{whiteSpace: 'pre-line'}}>{otherErrsDedupe.join('\n')}</div>,
-                    duration: 4,
+                    content: <div style={{whiteSpace: 'pre-line'}}>{otherErrsDedupe.join('\n')}</div>, duration: 4,
                 });
             }
             return;
@@ -163,14 +156,11 @@ export default function ForgotPasswordPage() {
 
     const onReset = async (values) => {
         const answers = questions.map((q, i) => ({
-            question: q.question,
-            answer: values[`ans_${i}`],
+            question: q.question, answer: values[`ans_${i}`],
         }));
         try {
             await api.post('/auth/reset-with-qa', {
-                email: emailVal,
-                answers,
-                new_password: values.new_password,
+                email: emailVal, answers, new_password: values.new_password,
             });
             message.success('Password reset, please login');
             navigate('/login');
@@ -179,8 +169,7 @@ export default function ForgotPasswordPage() {
         }
     };
 
-    return (
-        <div className={styles.wrapper}>
+    return (<div className={styles.wrapper}>
             <Card className={styles.card} variant="borderless">
                 <header className={styles.header}>
                     <Title level={3} style={{margin: 0}}>Forgot Password</Title>
@@ -254,8 +243,7 @@ export default function ForgotPasswordPage() {
                                 style={{marginBottom: 10}}
                             />
 
-                            {questions.map((q, i) => (
-                                <Form.Item
+                            {questions.map((q, i) => (<Form.Item
                                     key={i}
                                     name={`ans_${i}`}
                                     rules={[{required: true, message: 'Question must be answered'}]}
@@ -273,8 +261,7 @@ export default function ForgotPasswordPage() {
                                         <span ref={refs[`ans_${i}`]?.label}
                                               className={styles.floatLabel}>{q.question}</span>
                                     </div>
-                                </Form.Item>
-                            ))}
+                                </Form.Item>))}
 
                             <Form.Item
                                 name="new_password"
@@ -308,6 +295,5 @@ export default function ForgotPasswordPage() {
                     </div>
                 </div>
             </Card>
-        </div>
-    );
+        </div>);
 }

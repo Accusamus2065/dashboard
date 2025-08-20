@@ -1,3 +1,4 @@
+/*frontend/src/pages/RegisterPage.module.css*/
 /* ===== Page layout & card ===== */
 .wrapper {
     min-height: 100vh;
@@ -92,8 +93,6 @@
 
 .hasValue {
 }
-
-/* ensure CSS Modules exports the class */
 
 /* Fixed field height (change once to adjust everywhere) */
 :root {
